@@ -124,9 +124,44 @@ func TestLoopForcesAnswerAfterBudget(t *testing.T) {
 	if !tr.ForcedAnswer {
 		t.Fatal("expected the budget message to be sent")
 	}
-	msgs := fake.requests[len(fake.requests)-1].Messages
+	final := fake.requests[len(fake.requests)-1]
+	msgs := final.Messages
 	if !strings.Contains(msgs[len(msgs)-1].Content, "investigation budget") {
 		t.Fatalf("last message before answer = %q", msgs[len(msgs)-1].Content)
+	}
+	if len(final.Tools) != 1 {
+		t.Fatalf("forced turn offered %d tools, want only diagnose", len(final.Tools))
+	}
+	// Older tool outputs are shortened; the newest are sent verbatim.
+	var tools []Message
+	for _, m := range msgs {
+		if m.Role == "tool" {
+			tools = append(tools, m)
+		}
+	}
+	if !strings.Contains(tools[0].Content, "older output shortened") && len(tools[0].Content) > shortenedHead {
+		t.Fatal("oldest tool output was not compacted")
+	}
+	if strings.Contains(tools[len(tools)-1].Content, "older output shortened") {
+		t.Fatal("newest tool output was compacted")
+	}
+}
+
+func TestCompactKeepsSystemPromptAndDoesNotMutateHistory(t *testing.T) {
+	long := strings.Repeat("x", 2000)
+	msgs := []Message{{Role: "system", Content: systemPrompt}}
+	for i := 0; i < 6; i++ {
+		msgs = append(msgs, Message{Role: "tool", Content: long})
+	}
+	out := compact(msgs)
+	if out[0].Content != systemPrompt {
+		t.Fatal("system prompt changed")
+	}
+	if len(out[1].Content) >= len(long) || len(out[6].Content) != len(long) {
+		t.Fatal("wrong messages compacted")
+	}
+	if len(msgs[1].Content) != len(long) {
+		t.Fatal("compact mutated the caller's history")
 	}
 }
 
@@ -184,4 +219,61 @@ func TestMetricsSummaryFlagsStoppedGPU(t *testing.T) {
 	if len(flagged) != 1 || flagged[0] != want {
 		t.Fatalf("flagged %v, want [%s]", flagged, want)
 	}
+}
+
+func TestSearchLastReturnsLatestMatches(t *testing.T) {
+	set, _ := loadDev(t, 0)
+	tl := &Tools{set: set}
+	first := tl.Search(`step [0-9]+ loss`, "node01/train.log", 2, false)
+	last := tl.Search(`step [0-9]+ loss`, "node01/train.log", 2, true)
+	if first == last || !strings.Contains(first, "set last=true") || !strings.Contains(last, "showing last 2") {
+		t.Fatalf("first:\n%s\nlast:\n%s", first, last)
+	}
+}
+
+func TestAnomaliesSeparatesPreJobTemplates(t *testing.T) {
+	set, _ := loadDev(t, 0)
+	out := (&Tools{set: set}).Anomalies()
+	during := strings.Index(out, "DURING the job")
+	before := strings.Index(out, "BEFORE the job started")
+	xid13 := strings.Index(out, "): 13,")
+	if during < 0 || before < 0 || xid13 < before {
+		t.Fatalf("the pre-job Xid 13 should be listed in the BEFORE section:\n%s", out)
+	}
+}
+
+func TestMetricsSummaryCitesFirstThrottledSample(t *testing.T) {
+	specs, _ := scenario.Suite("dev")
+	var spec scenario.Spec
+	for _, s := range specs {
+		if s.Fault == "gpu_thermal_slowdown" {
+			spec = s
+			break
+		}
+	}
+	dir := filepath.Join(t.TempDir(), "s")
+	truth, err := scenario.Generate(spec, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err := logs.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := (&Tools{set: set}).MetricsSummary()
+	root := map[string]bool{}
+	for _, id := range truth.RootEvidence {
+		root[id] = true
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if i := strings.Index(line, "hw_slowdown,sw_thermal first@"); i >= 0 {
+			id := strings.Fields(strings.TrimRight(line[i+len("hw_slowdown,sw_thermal first@"):], "}"))[0]
+			id = strings.TrimSuffix(strings.TrimSuffix(id, "}"), ";")
+			if !root[id] {
+				t.Fatalf("cited %s is not root evidence", id)
+			}
+			return
+		}
+	}
+	t.Fatalf("no throttled first@ id in:\n%s", out)
 }

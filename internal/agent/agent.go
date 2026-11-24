@@ -53,6 +53,8 @@ type Trace struct {
 	OutputTokens int       `json:"output_tokens"`
 	WallSeconds  float64   `json:"wall_seconds"`
 	ForcedAnswer bool      `json:"forced_answer"`
+	// MaxPrompt is the largest single request; near NumCtx means the runtime may have truncated history.
+	MaxPrompt int `json:"max_prompt_tokens"`
 }
 
 const systemPrompt = `You are an on-call infrastructure engineer diagnosing why a multi-node GPU training job failed or degraded.
@@ -62,6 +64,7 @@ You can only see the logs through the tools. Work like a careful engineer:
 - Per-node clocks can be skewed by a few seconds, so do not decide only by which timestamp is earliest across nodes.
 - Kernel lines name GPUs by PCI bus id; map them to a GPU index with the node's hw.txt (search for the bus id).
 - A missing signal can be evidence too (for example a GPU that stops reporting metrics).
+- Older tool outputs are shortened as you go. When you find a record you may cite, write its id in your reply.
 
 Answer by calling diagnose exactly once, with:
 - fault: one of gpu_fell_off_bus, gpu_ecc_uncorrectable, ib_link_down, host_oom, gpu_thermal_slowdown, storage_full, or other (a real root fault that is none of these).
@@ -90,6 +93,7 @@ func toolSpecs() []map[string]any {
 			"pattern": str("RE2 regular expression"),
 			"file":    str("optional: a file like node02/kern.log, or a node directory like node02"),
 			"limit":   num("max results, up to 30"),
+			"last":    map[string]any{"type": "boolean", "description": "return the latest matches instead of the earliest"},
 		}, "pattern"),
 		fn("context", "Show records before and after an id in the same file.", map[string]any{
 			"id": str("record id, e.g. node02/kern.log:120"), "before": num("records before (max 15)"), "after": num("records after (max 15)"),
@@ -120,9 +124,13 @@ type chatResponse struct {
 	Error           string  `json:"error"`
 }
 
-func (c Config) chat(ctx context.Context, msgs []Message) (chatResponse, error) {
+func (c Config) chat(ctx context.Context, msgs []Message, onlyDiagnose bool) (chatResponse, error) {
+	tools := toolSpecs()
+	if onlyDiagnose {
+		tools = tools[len(tools)-1:]
+	}
 	body, err := json.Marshal(chatRequest{
-		Model: c.Model, Messages: msgs, Tools: toolSpecs(), Think: c.Think,
+		Model: c.Model, Messages: msgs, Tools: tools, Think: c.Think,
 		Options: map[string]any{"temperature": 0, "seed": c.Seed, "num_ctx": c.NumCtx},
 	})
 	if err != nil {
@@ -154,7 +162,31 @@ func (c Config) chat(ctx context.Context, msgs []Message) (chatResponse, error) 
 	return out, nil
 }
 
-const maxRejected = 2
+const (
+	maxRejected   = 2
+	keepToolFull  = 3   // most recent tool outputs kept verbatim
+	shortenedHead = 500 // characters kept from older tool outputs
+)
+
+// compact returns the history to send: the newest tool outputs verbatim, older
+// ones cut to a short head. Ollama silently drops the oldest messages (the
+// system prompt first) when a request exceeds num_ctx, so the harness bounds
+// the request itself instead of relying on the runtime.
+func compact(msgs []Message) []Message {
+	out := make([]Message, len(msgs))
+	copy(out, msgs)
+	seen := 0
+	for i := len(out) - 1; i >= 0; i-- {
+		if out[i].Role != "tool" {
+			continue
+		}
+		seen++
+		if seen > keepToolFull && len(out[i].Content) > shortenedHead {
+			out[i].Content = out[i].Content[:shortenedHead] + "\n[older output shortened to save context; call the tool again if you need it]"
+		}
+	}
+	return out
+}
 
 // Diagnose runs the loop on one scenario.
 func Diagnose(ctx context.Context, cfg Config, set *logs.Set) (eval.Diagnosis, *Trace, error) {
@@ -175,18 +207,25 @@ func Diagnose(ctx context.Context, cfg Config, set *logs.Set) (eval.Diagnosis, *
 			tr.Messages = msgs
 			return eval.Diagnosis{}, tr, errors.New("no diagnosis within the round limit")
 		}
-		resp, err := cfg.chat(ctx, msgs)
+		resp, err := cfg.chat(ctx, compact(msgs), tr.ForcedAnswer)
 		if err != nil {
 			tr.Messages = msgs
 			return eval.Diagnosis{}, tr, err
 		}
 		tr.PromptTokens += resp.PromptEvalCount
 		tr.OutputTokens += resp.EvalCount
+		if resp.PromptEvalCount > tr.MaxPrompt {
+			tr.MaxPrompt = resp.PromptEvalCount
+		}
 		m := resp.Message
 		m.Role = "assistant"
 		msgs = append(msgs, m)
 		if len(m.ToolCalls) == 0 {
-			msgs = append(msgs, Message{Role: "user", Content: "Use the tools to investigate, then call diagnose."})
+			nudge := "Use the tools to investigate, then call diagnose."
+			if tr.ForcedAnswer {
+				nudge = "Call diagnose now. It is the only tool available."
+			}
+			msgs = append(msgs, Message{Role: "user", Content: nudge})
 			continue
 		}
 		for _, call := range m.ToolCalls {
@@ -213,12 +252,13 @@ func Diagnose(ctx context.Context, cfg Config, set *logs.Set) (eval.Diagnosis, *
 
 func runTool(t *Tools, name string, raw json.RawMessage) string {
 	var a struct {
-		Pattern string  `json:"pattern"`
-		File    string  `json:"file"`
-		Limit   flexInt `json:"limit"`
-		ID      string  `json:"id"`
-		Before  flexInt `json:"before"`
-		After   flexInt `json:"after"`
+		Pattern string   `json:"pattern"`
+		File    string   `json:"file"`
+		Limit   flexInt  `json:"limit"`
+		ID      string   `json:"id"`
+		Before  flexInt  `json:"before"`
+		After   flexInt  `json:"after"`
+		Last    flexBool `json:"last"`
 	}
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &a); err != nil {
@@ -236,7 +276,7 @@ func runTool(t *Tools, name string, raw json.RawMessage) string {
 		if a.Pattern == "" {
 			return "pattern is required"
 		}
-		return t.Search(a.Pattern, a.File, int(a.Limit))
+		return t.Search(a.Pattern, a.File, int(a.Limit), bool(a.Last))
 	case "context":
 		b, f := int(a.Before), int(a.After)
 		if b == 0 && f == 0 {
@@ -245,6 +285,15 @@ func runTool(t *Tools, name string, raw json.RawMessage) string {
 		return t.Context(a.ID, b, f)
 	}
 	return "unknown tool " + name
+}
+
+// flexBool accepts true or "true"; small models emit both.
+type flexBool bool
+
+func (f *flexBool) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	*f = flexBool(s == "true" || s == "1")
+	return nil
 }
 
 // flexInt accepts 5 or "5"; small models emit both.

@@ -1,0 +1,391 @@
+[
+  {
+    "scenario": "dev-gpu_ecc_uncorrectable-0",
+    "split": "dev",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "A",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "gpu_ecc_uncorrectable",
+      "node": "node04",
+      "gpu": 0,
+      "evidence": [
+        "node04/kern.log:31",
+        "node04/train.log:113"
+      ],
+      "explanation": "At 14:46:33, node04's GPU 0 (PCI:0000:18:00) experienced an uncorrectable double bit error (Xid 48), followed by a row remapper event. The CUDA runtime then reported \"uncorrectable ECC error encountered\" during the forward pass. This hardware fault caused collective timeouts and job failure across all ranks."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-gpu_ecc_uncorrectable-1",
+    "split": "dev",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "A",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "gpu_ecc_uncorrectable",
+      "node": "node01",
+      "gpu": 3,
+      "evidence": [
+        "node01/kern.log:27",
+        "node01/kern.log:28"
+      ],
+      "explanation": "At 09:44:29, GPU 3 on node01 experienced an uncorrectable double bit error (DBE) in the framebuffer. The driver attempted to remap the row and reset the GPU at 09:44:30, but this hardware fault caused collective operation timeouts and job failure."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-gpu_ecc_uncorrectable-2",
+    "split": "dev",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "A",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "gpu_ecc_uncorrectable",
+      "node": "node04",
+      "gpu": 7,
+      "evidence": [
+        "node04/kern.log:31",
+        "node04/kern.log:32"
+      ],
+      "explanation": "At 10:05:43, GPU 7 on node04 (PCI:0000:db:00) experienced an uncorrectable double bit error (DBE) in the framebuffer, followed immediately by a GPU reset. This uncorrectable ECC error caused the CUDA process to fail with an uncorrectable ECC error, which then triggered collective timeouts across all ranks."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-gpu_fell_off_bus-0",
+    "split": "dev",
+    "fault": "gpu_fell_off_bus",
+    "variant": "A",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node01",
+      "gpu": 5,
+      "evidence": [
+        "node01/kern.log:33",
+        "node01/kern.log:34"
+      ],
+      "explanation": "GPU 5 on node01 fell off the bus at 16:43:28, as shown by Xid 79 error messages. This caused the GPU to be lost and unable to report metrics, leading to collective timeouts and job failure. The transient InfiniBand link down on node04 recovered quickly and is not the root cause."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-gpu_fell_off_bus-1",
+    "split": "dev",
+    "fault": "gpu_fell_off_bus",
+    "variant": "A",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node04",
+      "gpu": 3,
+      "evidence": [
+        "node04/kern.log:31",
+        "node04/kern.log:32"
+      ],
+      "explanation": "The root cause is GPU index 3 on node04 fell off the bus. The kernel logs show Xid 79 error at 15:17:38 with message \"GPU has fallen off the bus\" for PCI device 0000:5d:00.0, which maps to GPU index 3 on node04 according to hw.txt. The metrics.log confirms the GPU was lost starting at 15:17:57."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-gpu_fell_off_bus-2",
+    "split": "dev",
+    "fault": "gpu_fell_off_bus",
+    "variant": "A",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node02",
+      "gpu": 0,
+      "evidence": [
+        "node02/kern.log:32",
+        "node02/kern.log:33"
+      ],
+      "explanation": "GPU 0 on node02 fell off the bus at 16:47:28, as shown by Xid 79 error and the explicit \"GPU has fallen off the bus\" messages. This caused the GPU to become unreachable, leading to collective timeouts and job failure."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-gpu_thermal_slowdown-0",
+    "split": "dev",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "A",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "gpu_ecc_uncorrectable",
+      "node": "node04",
+      "gpu": 1,
+      "evidence": [
+        "node04/kern.log:15"
+      ],
+      "explanation": "The root cause is an uncorrectable ECC error on GPU 1 of node04, indicated by Xid 13 with \"Out Of Range Address\" in the kernel log. This hardware fault caused collective timeouts and job failure across all ranks."
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false
+  },
+  {
+    "scenario": "dev-gpu_thermal_slowdown-1",
+    "split": "dev",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "A",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "gpu_thermal_slowdown",
+      "node": "node04",
+      "gpu": -1,
+      "evidence": [
+        "node04/metrics.log:25",
+        "node04/metrics.log:26",
+        "node04/metrics.log:27"
+      ],
+      "explanation": "At 16:21:29, all GPUs on node04 showed temperatures spiking from ~35-39°C to 58-67°C with power consumption jumping to 612-665W, indicating a thermal event. The metrics_summary showed clocks_event={hw_slowdown,sw_thermal} for node04/gpu6, confirming thermal throttling occurred across the node's GPUs."
+    },
+    "type": true,
+    "node": true,
+    "gpu": false,
+    "grounded": false,
+    "full": false
+  },
+  {
+    "scenario": "dev-gpu_thermal_slowdown-2",
+    "split": "dev",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "A",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node01",
+      "gpu": 2,
+      "evidence": [
+        "node01/kern.log:13"
+      ],
+      "explanation": "The root cause is a GPU hardware fault on node01/gpu2, evidenced by Xid 13 error \"Graphics SM Warp Exception on (GPC 1, TPC 2, SM 0): Out Of Range Address\" in kern.log. This indicates the GPU fell off the bus or had a fatal hardware error that caused the training job to fail."
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": false,
+    "full": false
+  },
+  {
+    "scenario": "dev-host_oom-0",
+    "split": "dev",
+    "fault": "host_oom",
+    "variant": "A",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "host_oom",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/kern.log:31",
+        "node01/kern.log:32"
+      ],
+      "explanation": "The OOM killer killed the pt_data_worker process on node01 at 11:14:41 due to out of memory conditions. This caused collective operation timeouts across all ranks, as seen in the train.log errors at 11:19:41. GPU metrics show no ECC errors or thermal issues, confirming this is a host memory problem rather than a GPU fault."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-host_oom-1",
+    "split": "dev",
+    "fault": "host_oom",
+    "variant": "A",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "host_oom",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/kern.log:30",
+        "node01/kern.log:31"
+      ],
+      "explanation": "The OOM killer invoked on node01 killed the pt_data_worker process at 13:49:09, causing a data loading error in the training loop. This memory exhaustion event is the root cause that led to the collective operation timeout and job failure. The InfiniBand link down on node03 was transient and recovered within seconds, so it is not the root cause."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-host_oom-2",
+    "split": "dev",
+    "fault": "host_oom",
+    "variant": "A",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "host_oom",
+      "node": "node02",
+      "gpu": -1,
+      "evidence": [
+        "node02/kern.log:30",
+        "node02/kern.log:31"
+      ],
+      "explanation": "The OOM killer killed the pt_data_worker process on node02 at 17:44:33 due to memory exhaustion. This caused the training job to fail, as evidenced by the collective timeout at 17:49:38. The root cause is host memory running out on node02."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-ib_link_down-0",
+    "split": "dev",
+    "fault": "ib_link_down",
+    "variant": "A",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node01",
+      "gpu": 6,
+      "evidence": [
+        "node01/kern.log:16"
+      ],
+      "explanation": "The Xid 13 error on node01 GPU 6 (PCI:0000:ba:00) indicates a GPU ECC uncorrectable error that caused the GPU to fall off the bus. This hardware fault led to NCCL timeouts across all ranks as the collective operations failed when one GPU became unavailable."
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false
+  },
+  {
+    "scenario": "dev-ib_link_down-1",
+    "split": "dev",
+    "fault": "ib_link_down",
+    "variant": "A",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "ib_link_down",
+      "node": "node02",
+      "gpu": -1,
+      "evidence": [
+        "node02/kern.log:29"
+      ],
+      "explanation": "An InfiniBand link went down on node02 at 18:01:00, which caused NCCL timeouts across all ranks starting at 18:06:04. The link did not recover before the job failed at 18:06:05."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-ib_link_down-2",
+    "split": "dev",
+    "fault": "ib_link_down",
+    "variant": "A",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "ib_link_down",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/kern.log:33"
+      ],
+      "explanation": "The root cause is an InfiniBand link down event on node01's mlx5_0 interface (PCI 0000:0c:00.0) at 18:54:33, which occurred before the job failure at 18:59:35. This network failure would cause collective operation timeouts and NCCL errors across all ranks, explaining why the job failed with exit code 1."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-storage_full-0",
+    "split": "dev",
+    "fault": "storage_full",
+    "variant": "A",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "storage_full",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:229"
+      ],
+      "explanation": "The root cause is storage full on node01, evidenced by the checkpoint save failure with \"No space left on device\" error at 17:42:56. This prevented the job from completing successfully and led to subsequent NCCL timeouts as symptoms of the job failing."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-storage_full-1",
+    "split": "dev",
+    "fault": "storage_full",
+    "variant": "A",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "storage_full",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:147"
+      ],
+      "explanation": "The job failed because node01 ran out of disk space at 15:45:26, causing the checkpoint save to fail with \"No space left on device\". This storage full condition led to collective timeouts as the training job could not continue properly. The IB link down on node02 was transient and recovered, so it is not the root cause."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  },
+  {
+    "scenario": "dev-storage_full-2",
+    "split": "dev",
+    "fault": "storage_full",
+    "variant": "A",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "storage_full",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:155"
+      ],
+      "explanation": "The job failed because the checkpoint storage was full at 12:12:03, causing the checkpoint save to fail with \"No space left on device\". This is evidenced by node01/train.log:155 showing the OSError when trying to save to '/lustre/ckpt/run-7/step_003000/model_states.p...'. The transient IB link down on node02 recovered quickly and was not the root cause."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true
+  }
+]

@@ -130,18 +130,35 @@ func (t *Tools) Anomalies() string {
 	if !start.IsZero() {
 		fmt.Fprintf(&b, "job start (scheduler): %s\n", start.Format("2006-01-02 15:04:05"))
 	}
-	fmt.Fprintf(&b, "%d warning/error templates, ordered by first occurrence:\n", len(order))
-	for i, c := range order {
-		if i == 40 {
-			fmt.Fprintf(&b, "... %d more\n", len(order)-40)
-			break
+	// Templates that only occurred before the job started go in their own
+	// section, so they are not read as candidates alongside in-job events.
+	var during, before []*cl
+	for _, c := range order {
+		if !start.IsZero() && c.last.TS.Before(start.Add(-10*time.Second)) {
+			before = append(before, c)
+		} else {
+			during = append(during, c)
 		}
-		var ns []string
-		for n := range c.nodes {
-			ns = append(ns, n)
+	}
+	write := func(list []*cl) {
+		for i, c := range list {
+			if i == 40 {
+				fmt.Fprintf(&b, "... %d more\n", len(list)-40)
+				break
+			}
+			var ns []string
+			for n := range c.nodes {
+				ns = append(ns, n)
+			}
+			sort.Strings(ns)
+			fmt.Fprintf(&b, "- x%d first=%s %s%s last=%s nodes=%s\n  example: %s\n", c.count, c.first.ID, stamp(c.first), relStart(start, c.first), c.last.ID, strings.Join(ns, ","), clip(c.first.Text))
 		}
-		sort.Strings(ns)
-		fmt.Fprintf(&b, "- x%d first=%s %s%s last=%s nodes=%s\n  example: %s\n", c.count, c.first.ID, stamp(c.first), relStart(start, c.first), c.last.ID, strings.Join(ns, ","), clip(c.first.Text))
+	}
+	fmt.Fprintf(&b, "DURING the job: %d warning/error templates, ordered by first occurrence:\n", len(during))
+	write(during)
+	if len(before) > 0 {
+		fmt.Fprintf(&b, "\nBEFORE the job started (from earlier work on these hosts; cannot have caused this job's failure): %d templates\n", len(before))
+		write(before)
 	}
 	return b.String()
 }
@@ -177,6 +194,7 @@ func (t *Tools) MetricsSummary() string {
 		min, max float64
 		numeric  bool
 		values   map[string]bool
+		firstID  map[string]string // categorical value -> first record showing it
 	}
 	type row struct {
 		node, gpu   string
@@ -217,7 +235,7 @@ func (t *Tools) MetricsSummary() string {
 			v := kv[name]
 			f := r.fields[name]
 			if f == nil {
-				f = &field{values: map[string]bool{}, numeric: true}
+				f = &field{values: map[string]bool{}, firstID: map[string]string{}, numeric: true}
 				r.fields[name] = f
 				r.order = append(r.order, name)
 			}
@@ -233,6 +251,9 @@ func (t *Tools) MetricsSummary() string {
 			}
 			if len(f.values) < 4 {
 				f.values[v] = true
+			}
+			if _, ok := f.firstID[v]; !ok && len(f.firstID) < 4 {
+				f.firstID[v] = e.ID
 			}
 		}
 	}
@@ -261,7 +282,15 @@ func (t *Tools) MetricsSummary() string {
 				vs = append(vs, v)
 			}
 			sort.Strings(vs)
-			parts = append(parts, fmt.Sprintf("%s={%s}", name, strings.Join(vs, ",")))
+			if len(vs) == 1 {
+				parts = append(parts, fmt.Sprintf("%s=%s", name, vs[0]))
+				continue
+			}
+			// Several values: say where each first appeared, so a change is citable.
+			for i, v := range vs {
+				vs[i] = v + " first@" + f.firstID[v]
+			}
+			parts = append(parts, fmt.Sprintf("%s={%s}", name, strings.Join(vs, "; ")))
 		}
 		fmt.Fprintf(&b, "%s n=%d last=%s%s %s\n", k, r.samples, r.last.ID, gap, strings.Join(parts, " "))
 	}
@@ -269,7 +298,7 @@ func (t *Tools) MetricsSummary() string {
 }
 
 // Search runs a case-insensitive regex over one file or all files.
-func (t *Tools) Search(pattern, file string, limit int) string {
+func (t *Tools) Search(pattern, file string, limit int, last bool) string {
 	if limit <= 0 || limit > 30 {
 		limit = 30
 	}
@@ -277,25 +306,32 @@ func (t *Tools) Search(pattern, file string, limit int) string {
 	if err != nil {
 		return "invalid regex: " + err.Error()
 	}
-	var b strings.Builder
-	n := 0
+	var hits []logs.Event
 	for _, e := range t.set.Events {
 		if file != "" && e.File != file && !strings.HasPrefix(e.File, strings.TrimSuffix(file, "/")+"/") {
 			continue
 		}
-		if !re.MatchString(e.Text) {
-			continue
-		}
-		n++
-		if n <= limit {
-			fmt.Fprintf(&b, "%s %s %s\n", e.ID, stamp(e), clip(e.Text))
+		if re.MatchString(e.Text) {
+			hits = append(hits, e)
 		}
 	}
-	if n == 0 {
+	if len(hits) == 0 {
 		return "no matches"
 	}
-	if n > limit {
-		fmt.Fprintf(&b, "... %d matches total, showing first %d\n", n, limit)
+	shown, which := hits, "all"
+	if len(hits) > limit {
+		if last {
+			shown, which = hits[len(hits)-limit:], fmt.Sprintf("last %d", limit)
+		} else {
+			shown, which = hits[:limit], fmt.Sprintf("first %d (set last=true for the latest)", limit)
+		}
+	}
+	var b strings.Builder
+	for _, e := range shown {
+		fmt.Fprintf(&b, "%s %s %s\n", e.ID, stamp(e), clip(e.Text))
+	}
+	if len(hits) > limit {
+		fmt.Fprintf(&b, "... %d matches total, showing %s\n", len(hits), which)
 	}
 	return b.String()
 }
