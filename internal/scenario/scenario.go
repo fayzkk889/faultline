@@ -236,12 +236,28 @@ func (g *gen) inject() error {
 	pid := 90000 + g.rng.Intn(9000)
 	switch g.spec.Fault {
 	case "gpu_fell_off_bus":
+		if g.b() {
+			// Older driver: no Xid line; the re-init attempt fails and the exporter silently drops the GPU.
+			g.kern(n, tf.Add(800*time.Millisecond), "err", fmt.Sprintf("NVRM: GPU %s: RmInitAdapter failed! (0x26:0x56:1474)", pciFull(gpu)), true)
+			g.kern(n, tf.Add(810*time.Millisecond), "err", fmt.Sprintf("NVRM: GPU %s: rm_init_adapter failed, device minor number %d", pciFull(gpu), gpu), true)
+			break
+		}
 		g.kern(n, tf, "err", fmt.Sprintf("NVRM: Xid (PCI:%s): 79, pid=%d, name=python3, GPU has fallen off the bus.", pciShort(gpu), pid), true)
 		g.kern(n, tf.Add(3*time.Millisecond), "err", fmt.Sprintf("NVRM: GPU %s: GPU has fallen off the bus.", pciFull(gpu)), true)
 	case "gpu_ecc_uncorrectable":
+		if g.b() {
+			// Newer architecture: contained ECC error reported as Xid 94; the process sees an illegal access.
+			g.kern(n, tf, "err", fmt.Sprintf("NVRM: Xid (PCI:%s): 94, pid=%d, name=python3, Contained: CE User Channel (0x9). RST: No, D-RST: No", pciShort(gpu), pid), true)
+			g.crashRank(n, r, tf.Add(200*time.Millisecond+g.jitter(300*time.Millisecond)), false, "CUDA error during forward pass",
+				"Traceback (most recent call last):",
+				"  File \"/workspace/train.py\", line 412, in train_step",
+				"    loss = model(batch).loss",
+				"RuntimeError: CUDA error: an illegal memory access was encountered")
+			break
+		}
 		g.kern(n, tf, "err", fmt.Sprintf("NVRM: Xid (PCI:%s): 48, pid=%d, name=python3, An uncorrectable double bit error (DBE) has been detected on GPU in the framebuffer at partition 6, subpartition 0.", pciShort(gpu), pid), true)
 		g.kern(n, tf.Add(40*time.Millisecond), "err", fmt.Sprintf("NVRM: Xid (PCI:%s): 63, pid=%d, name=python3, Row Remapper: New row marked for remapping, reset gpu to activate.", pciShort(gpu), pid), true)
-		g.crashRank(n, r, tf.Add(200*time.Millisecond+g.jitter(300*time.Millisecond)), "CUDA error during forward pass",
+		g.crashRank(n, r, tf.Add(200*time.Millisecond+g.jitter(300*time.Millisecond)), true, "CUDA error during forward pass",
 			"Traceback (most recent call last):",
 			"  File \"/workspace/train.py\", line 412, in train_step",
 			"    loss = model(batch).loss",
@@ -249,12 +265,22 @@ func (g *gen) inject() error {
 			"CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.")
 	case "ib_link_down":
 		nic := g.rng.Intn(4)
-		g.kern(n, tf, "info", fmt.Sprintf("mlx5_core 0000:%02x:00.0 ibp%ds0: Link down", 0x0c+nic*0x30, 0x0c+nic*0x30), true)
+		if g.b() {
+			// Transceiver fault reported as a module event; no explicit link-down line.
+			g.kern(n, tf, "err", fmt.Sprintf("mlx5_core 0000:%02x:00.0: Port module event[error]: module %d, Cable error, Power budget exceeded", 0x0c+nic*0x30, nic), true)
+		} else {
+			g.kern(n, tf, "info", fmt.Sprintf("mlx5_core 0000:%02x:00.0 ibp%ds0: Link down", 0x0c+nic*0x30, 0x0c+nic*0x30), true)
+		}
 		g.ibErrors(n, tf)
 	case "host_oom":
-		g.kern(n, tf, "warning", fmt.Sprintf("pt_data_worker invoked oom-killer: gfp_mask=0x140cca(GFP_HIGHUSER_MOVABLE|__GFP_COMP), order=0, oom_score_adj=0"), true)
-		g.kern(n, tf.Add(12*time.Millisecond), "err", fmt.Sprintf("Out of memory: Killed process %d (pt_data_worker) total-vm:48123412kB, anon-rss:31234124kB, file-rss:0kB, shmem-rss:0kB, UID:1000 pgtables:61234kB oom_score_adj:0", pid), true)
-		g.crashRank(n, rankOf(n, g.rng.Intn(gpusPerNode)), tf.Add(500*time.Millisecond+g.jitter(time.Second)), "Exception in training loop",
+		if g.b() {
+			// Containerized job: the cgroup OOM is reported by the scheduler, not the host kernel log.
+			g.sched(tf.Add(2*time.Second), fmt.Sprintf("job %d step 0: Detected 1 oom_kill event in StepId=%d.0 on %s. Some of the step tasks have been OOM Killed.", g.jobID, g.jobID, nodeName(n)), true)
+		} else {
+			g.kern(n, tf, "warning", fmt.Sprintf("pt_data_worker invoked oom-killer: gfp_mask=0x140cca(GFP_HIGHUSER_MOVABLE|__GFP_COMP), order=0, oom_score_adj=0"), true)
+			g.kern(n, tf.Add(12*time.Millisecond), "err", fmt.Sprintf("Out of memory: Killed process %d (pt_data_worker) total-vm:48123412kB, anon-rss:31234124kB, file-rss:0kB, shmem-rss:0kB, UID:1000 pgtables:61234kB oom_score_adj:0", pid), true)
+		}
+		g.crashRank(n, rankOf(n, g.rng.Intn(gpusPerNode)), tf.Add(500*time.Millisecond+g.jitter(time.Second)), true, "Exception in training loop",
 			"Traceback (most recent call last):",
 			"  File \"/usr/lib/python3/dist-packages/torch/utils/data/dataloader.py\", line 1251, in _try_get_data",
 			"    data = self._data_queue.get(timeout=timeout)",
@@ -262,11 +288,23 @@ func (g *gen) inject() error {
 	case "gpu_thermal_slowdown":
 		// Evidence lives in metrics; see metrics().
 	case "storage_full":
-		g.crashRank(0, 0, tf.Add(30*time.Second+g.jitter(10*time.Second)), "Checkpoint save failed",
+		errLine := "OSError: [Errno 28] No space left on device"
+		if g.b() {
+			errLine = "OSError: [Errno 122] Disk quota exceeded"
+		}
+		g.crashRank(0, 0, tf.Add(30*time.Second+g.jitter(10*time.Second)), true, "Checkpoint save failed",
 			"Traceback (most recent call last):",
 			"  File \"/workspace/ckpt.py\", line 88, in save",
 			"    torch.save(state, path)",
-			fmt.Sprintf("OSError: [Errno 28] No space left on device: '/lustre/ckpt/run-7/step_%06d/model_states.pt'", 1000*(1+g.rng.Intn(9))))
+			fmt.Sprintf("%s: '/lustre/ckpt/run-7/step_%06d/model_states.pt'", errLine, 1000*(1+g.rng.Intn(9))))
+	case "nvlink_error":
+		// Held out: not in Known, so the expected answer is Other.
+		g.kern(n, tf, "err", fmt.Sprintf("NVRM: Xid (PCI:%s): 74, pid=%d, name=python3, NVLink: fatal error detected on link 3(0x0, 0x0, 0x10000, 0x0, 0x0, 0x0, 0x0)", pciShort(gpu), pid), true)
+		g.crashRank(n, r, tf.Add(150*time.Millisecond+g.jitter(200*time.Millisecond)), false, "NCCL operation failed",
+			"Traceback (most recent call last):",
+			"  File \"/workspace/train.py\", line 430, in train_step",
+			"    dist.all_reduce(grads)",
+			"torch.distributed.DistBackendError: NCCL error in: ProcessGroupNCCL.cpp:2033, unhandled cuda error (run with NCCL_DEBUG=INFO for details), NCCL version 2.21.5")
 	default:
 		return fmt.Errorf("unknown fault %q", g.spec.Fault)
 	}
@@ -274,10 +312,12 @@ func (g *gen) inject() error {
 }
 
 // crashRank makes one rank fail with an error and traceback; the cascade follows in training().
-func (g *gen) crashRank(n, r int, t time.Time, msg string, tb ...string) {
+func (g *gen) crashRank(n, r int, t time.Time, root bool, msg string, tb ...string) {
 	g.stopAt[r] = t
-	g.train(n, r, t, "ERROR", msg, true, tb...)
+	g.train(n, r, t, "ERROR", msg, root, tb...)
 }
+
+func (g *gen) b() bool { return g.spec.Variant == "B" }
 
 // ibErrors emits IB completion errors on the faulty node and on two peers, all within ~2 s.
 func (g *gen) ibErrors(n int, tf time.Time) {
@@ -396,7 +436,7 @@ func (g *gen) metrics() {
 					temp, clk, reasons, root = 92+g.rng.Intn(4), 1080+g.rng.Intn(120), "hw_slowdown,sw_thermal", true
 				}
 				dbe := 0
-				if isF && g.spec.Fault == "gpu_ecc_uncorrectable" && after {
+				if isF && g.spec.Fault == "gpu_ecc_uncorrectable" && after && !g.b() {
 					dbe, root = 1, true
 				}
 				if n == sbeN && gp == sbeG && g.rng.Intn(6) == 0 {
@@ -405,6 +445,25 @@ func (g *gen) metrics() {
 				sb := 0
 				if n == sbeN && gp == sbeG {
 					sb = sbe
+				}
+				if g.b() {
+					// Newer exporter: different ECC field names and throttle reasons as an NVML bitmask.
+					if isF && g.spec.Fault == "gpu_fell_off_bus" && after {
+						continue // the lost GPU silently disappears from the samples
+					}
+					if isF && g.spec.Fault == "gpu_ecc_uncorrectable" && after {
+						dbe, root = 1, true
+					}
+					mask := 0x0
+					if util == 0 {
+						mask = 0x1 // GPU idle
+					}
+					if reasons != "none" {
+						mask = 0x68 // HW slowdown | SW thermal | HW thermal
+					}
+					line := fmt.Sprintf("node=%s gpu=%d temp_c=%d sm_mhz=%d power_w=%d util=%d ecc_vol_corr=%d ecc_vol_uncorr=%d clocks_event_reasons=0x%016x", nodeName(n), gp, temp, clk, pw, util, sb, dbe, mask)
+					g.add(fileKey(n, "metrics"), entry{t: t, text: line, root: root})
+					continue
 				}
 				line := fmt.Sprintf("node=%s gpu=%d temp_c=%d sm_mhz=%d power_w=%d util=%d ecc_sbe=%d ecc_dbe=%d clocks_event=%s", nodeName(n), gp, temp, clk, pw, util, sb, dbe, reasons)
 				if isF && g.spec.Fault == "gpu_fell_off_bus" && after {
@@ -497,6 +556,15 @@ func Suite(split string) ([]Spec, error) {
 			for s := 0; s < 3; s++ {
 				out = append(out, Spec{Name: fmt.Sprintf("dev-%s-%d", f, s), Split: "dev", Fault: f, Variant: "A", Seed: int64(1000 + 10*i + s)})
 			}
+		}
+	case "test":
+		for i, f := range Known {
+			for s := 0; s < 3; s++ {
+				out = append(out, Spec{Name: fmt.Sprintf("test-%s-%d", f, s), Split: "test", Fault: f, Variant: "B", Seed: int64(2000 + 10*i + s)})
+			}
+		}
+		for s := 0; s < 4; s++ {
+			out = append(out, Spec{Name: fmt.Sprintf("test-nvlink_error-%d", s), Split: "test", Fault: "nvlink_error", Variant: "A", Seed: int64(2100 + s)})
 		}
 	default:
 		return nil, fmt.Errorf("unknown split %q", split)

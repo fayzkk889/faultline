@@ -13,7 +13,7 @@ import (
 func suites(t *testing.T) []scenario.Spec {
 	t.Helper()
 	var all []scenario.Spec
-	for _, split := range []string{"dev"} {
+	for _, split := range []string{"dev", "test"} {
 		s, err := scenario.Suite(split)
 		if err != nil {
 			t.Fatal(err)
