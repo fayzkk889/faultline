@@ -14,6 +14,8 @@ func main() {
 	switch os.Args[1] {
 	case "gen":
 		err = cmdGen(os.Args[2:])
+	case "agent":
+		err = cmdAgent(os.Args[2:])
 	case "rules":
 		err = cmdRules(os.Args[2:])
 	default:
@@ -28,6 +30,7 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   faultline gen   -split dev|test -out DIR
-  faultline rules -data DIR [-full] -out FILE.json`)
+  faultline rules -data DIR [-full] -out FILE.json
+  faultline agent -data DIR [-model M] [-think] -out FILE.json -traces DIR`)
 	os.Exit(2)
 }
