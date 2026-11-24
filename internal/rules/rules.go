@@ -41,6 +41,28 @@ var (
 	watchdogRe = regexp.MustCompile(`Watchdog caught collective operation timeout`)
 )
 
+// Options selects the baseline. Full adds signatures written with knowledge of
+// the test-split phrasings and the public NVIDIA Xid catalog; it is an upper
+// bound for a well-informed rules author, not a fair held-out baseline.
+type Options struct{ Full bool }
+
+var (
+	rmInitRe  = regexp.MustCompile(`NVRM: GPU ([0-9a-f:.]+): (RmInitAdapter failed|rm_init_adapter failed)`)
+	uncorrRe  = regexp.MustCompile(`ecc_vol_uncorr=([1-9]\d*)`)
+	maskRe    = regexp.MustCompile(`clocks_event_reasons=0x([0-9a-f]+)`)
+	moduleRe  = regexp.MustCompile(`mlx5_core \S+: Port module event\[error\]`)
+	cgroupOOM = regexp.MustCompile(`oom_kill event .* on (node\d+)`)
+	quotaRe   = regexp.MustCompile(`Errno 122|Disk quota exceeded`)
+)
+
+// fullXid extends xidFault with the public catalog entries relevant here.
+var fullXid = map[int]string{
+	64: "gpu_ecc_uncorrectable",
+	94: "gpu_ecc_uncorrectable",
+	95: "gpu_ecc_uncorrectable",
+	74: scenario.Other, // NVLink error: real, but outside the known label space
+}
+
 // xidFault maps the Xids seen in dev logs. 13 is an application fault from a
 // previous job and is deliberately ignored.
 var xidFault = map[int]string{
@@ -50,7 +72,7 @@ var xidFault = map[int]string{
 }
 
 // Diagnose runs the baseline over one scenario.
-func Diagnose(set *logs.Set) eval.Diagnosis {
+func Diagnose(set *logs.Set, opt Options) eval.Diagnosis {
 	pci := pciMap(set)
 	start := jobStart(set)
 	var cands []candidate
@@ -76,7 +98,11 @@ func Diagnose(set *logs.Set) eval.Diagnosis {
 		case "kern":
 			if m := xidRe.FindStringSubmatch(e.Text); m != nil {
 				x, _ := strconv.Atoi(m[2])
-				if f, ok := xidFault[x]; ok {
+				f, ok := xidFault[x]
+				if !ok && opt.Full {
+					f, ok = fullXid[x]
+				}
+				if ok {
 					add(candidate{prio: 0, fault: f, node: e.Node, gpu: lookup(pci, e.Node, m[1]), ts: e.TS, ids: []string{e.ID}, why: "Xid " + m[2]})
 				}
 				continue
@@ -98,6 +124,14 @@ func Diagnose(set *logs.Set) eval.Diagnosis {
 			}
 			if oomRe.MatchString(e.Text) {
 				add(candidate{prio: 1, fault: "host_oom", node: e.Node, gpu: -1, ts: e.TS, ids: []string{e.ID}, why: "oom-killer"})
+				continue
+			}
+			if opt.Full {
+				if m := rmInitRe.FindStringSubmatch(e.Text); m != nil {
+					add(candidate{prio: 0, fault: "gpu_fell_off_bus", node: e.Node, gpu: lookup(pci, e.Node, m[1]), ts: e.TS, ids: []string{e.ID}, why: "adapter re-init failed"})
+				} else if moduleRe.MatchString(e.Text) {
+					add(candidate{prio: 1, fault: "ib_link_down", node: e.Node, gpu: -1, ts: e.TS, ids: []string{e.ID}, why: "NIC module error"})
+				}
 			}
 		case "metrics":
 			if m := gpuLostRe.FindStringSubmatch(e.Text); m != nil {
@@ -109,11 +143,14 @@ func Diagnose(set *logs.Set) eval.Diagnosis {
 			if m := gpuFieldRe.FindStringSubmatch(e.Text); m != nil {
 				g, _ = strconv.Atoi(m[1])
 			}
+			if m := uncorrRe.FindStringSubmatch(e.Text); m != nil && opt.Full {
+				add(candidate{prio: 0, fault: "gpu_ecc_uncorrectable", node: e.Node, gpu: g, ts: e.TS, ids: []string{e.ID}, why: "ecc_vol_uncorr>0"})
+			}
 			if m := dbeRe.FindStringSubmatch(e.Text); m != nil {
 				add(candidate{prio: 0, fault: "gpu_ecc_uncorrectable", node: e.Node, gpu: g, ts: e.TS, ids: []string{e.ID}, why: "ecc_dbe>0"})
 			}
 			key := e.Node + "/" + strconv.Itoa(g)
-			if m := clocksRe.FindStringSubmatch(e.Text); m != nil && m[1] != "none" && (strings.Contains(m[1], "slowdown") || strings.Contains(m[1], "thermal")) {
+			if throttled(e.Text, opt) {
 				thermal[key] = append(thermal[key], e)
 				if len(thermal[key]) == 3 {
 					s := thermal[key]
@@ -123,8 +160,12 @@ func Diagnose(set *logs.Set) eval.Diagnosis {
 				delete(thermal, key)
 			}
 		case "train":
-			if enospcRe.MatchString(e.Text) {
+			if enospcRe.MatchString(e.Text) || (opt.Full && quotaRe.MatchString(e.Text)) {
 				add(candidate{prio: 1, fault: "storage_full", node: e.Node, gpu: -1, ts: e.TS, ids: []string{e.ID}, why: "ENOSPC"})
+			}
+		case "scheduler":
+			if m := cgroupOOM.FindStringSubmatch(e.Text); m != nil && opt.Full {
+				add(candidate{prio: 1, fault: "host_oom", node: m[1], gpu: -1, ts: e.TS, ids: []string{e.ID}, why: "cgroup oom_kill"})
 			}
 		}
 	}
@@ -153,6 +194,21 @@ func Diagnose(set *logs.Set) eval.Diagnosis {
 		}
 	}
 	return eval.Diagnosis{Fault: scenario.Other, GPU: -1, Explanation: "rule: no signature and no timeout"}
+}
+
+func throttled(text string, opt Options) bool {
+	if m := clocksRe.FindStringSubmatch(text); m != nil {
+		return m[1] != "none" && (strings.Contains(m[1], "slowdown") || strings.Contains(m[1], "thermal"))
+	}
+	if !opt.Full {
+		return false
+	}
+	if m := maskRe.FindStringSubmatch(text); m != nil {
+		v, err := strconv.ParseUint(m[1], 16, 64)
+		// NVML: 0x8 HW slowdown, 0x20 SW thermal, 0x40 HW thermal.
+		return err == nil && v&(0x8|0x20|0x40) != 0
+	}
+	return false
 }
 
 func pciMap(set *logs.Set) map[string]int {

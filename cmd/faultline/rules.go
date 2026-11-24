@@ -16,10 +16,15 @@ import (
 func cmdRules(args []string) error {
 	fs := flag.NewFlagSet("rules", flag.ExitOnError)
 	data := fs.String("data", "data/dev", "split directory containing scenario directories")
+	full := fs.Bool("full", false, "add signatures written with knowledge of the test phrasings (upper bound)")
 	out := fs.String("out", "", "write per-scenario results as JSON")
 	_ = fs.Parse(args)
-	return runEach(*data, *out, "rules", func(set *logs.Set) (eval.Diagnosis, error) {
-		return rules.Diagnose(set), nil
+	name := "rules"
+	if *full {
+		name = "rules-full"
+	}
+	return runEach(*data, *out, name, func(set *logs.Set) (eval.Diagnosis, error) {
+		return rules.Diagnose(set, rules.Options{Full: *full}), nil
 	})
 }
 
