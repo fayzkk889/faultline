@@ -11,10 +11,16 @@ situation with known ground truth, and scores three diagnosers on it:
 
 - `rules`: a signature baseline written from the dev split only, and frozen in git before the test
   split existed;
-- `rules-full`: the same rules plus signatures written *with* knowledge of the test phrasings and the
-  public Xid catalog, an informed upper bound;
+- `rules-full`: the same rules plus signatures for the exact test strings and the public Xid catalog,
+  an oracle that only shows the test split is solvable by signatures;
+- `rules-generic`: no fault vocabulary at all, just the earliest unique in-job error; it measures how
+  much of the task is plain localization (a lot);
 - `agent`: a tool-using loop on a local model (Ollama) that must cite record ids, which the harness
   verifies exist.
+
+An independent review ([reviews/faultline-review.md](reviews/faultline-review.md)) found a
+test-split leak in an earlier agent version and an overstated methodology claim; both are
+corrected and disclosed in DESIGN.md and ITERATIONS.md.
 
 Results: [RESULTS.md](RESULTS.md). Design and scoring contract: [DESIGN.md](DESIGN.md). Every agent
 change and its dev score: [ITERATIONS.md](ITERATIONS.md).
@@ -51,6 +57,7 @@ go run ./cmd/faultline gen -split test -out data
 
 go run ./cmd/faultline rules        -data data/test
 go run ./cmd/faultline rules -full  -data data/test
+go run ./cmd/faultline rules -generic -data data/test
 go run ./cmd/faultline agent -data data/test -model qwen3.5:9b -out results/agent-test.json -traces results/traces-test
 
 go test ./...

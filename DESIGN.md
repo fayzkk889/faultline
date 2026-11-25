@@ -84,11 +84,26 @@ correctable ECC counts and one hot-but-not-throttled GPU, and per-node clock ske
 
 ## Methodology guard
 
-The rules baseline is written from dev-split logs only and committed before variant B and the
-held-out fault exist in the code. The commit history is the proof. The same person wrote the
-generator and both diagnosers, so the test split measures robustness to phrasings the rules author
-did not see, not an independent benchmark. A second baseline, `rules-full`, adds the public NVIDIA
-Xid catalog and broader phrases; it bounds what a better-informed rules author would get.
+What the commit history does and does not prove (corrected after the independent review in
+`../../reviews/faultline-review.md`):
+
+- **Proven**: the rules *code* was committed (`fd036a0`) before variant B and the held-out fault
+  existed in the generator (`850cd88`), and the dev split regenerates byte-identical afterwards.
+  `rules` was not edited after the test data existed (its outputs are unchanged and pinned by tests).
+- **Not proven, and not true**: that the rules author had not seen the test phrasings. This file,
+  committed in `fd036a0`, already listed them, and the same session wrote the generator, the rules
+  and the agent within minutes. The `rules` vs test result therefore shows how *exact-string*
+  signatures behave under phrasing drift, not what an unaware engineer would have written.
+- `rules-full` adds signatures for the exact test strings and the public Xid catalog. It is an
+  oracle tuned to this generator, useful only to show the test split is solvable by signatures.
+- `rules-generic` has no fault vocabulary at all: earliest in-job error-level record whose masked
+  template occurs once. It shows how much of the task is plain localization.
+
+**Disclosed leak (fixed before the clean test run):** an earlier agent version had a `STOPPED`
+flag in `metrics_summary`, a prompt line about missing signals, and a unit test that generated
+test-split data. All three were written knowing that test variant B drops a lost GPU's samples, a
+case that never occurs on dev. They were removed in `0fcc420`. One test run made with the leaky
+version is kept and labelled `i4leak`; it is not the headline result.
 
 ## Alternatives considered
 
@@ -105,13 +120,22 @@ Xid catalog and broader phrases; it bounds what a better-informed rules author w
 
 A single tool-using loop against a local model (Ollama). Tools:
 
-- `overview` — files, line counts, time ranges, job start/end, warning/error counts per file.
-- `anomalies` — warning-or-worse lines clustered by template (digits and hex masked), with counts,
-  first/last ids and nodes. Generic: it contains no fault knowledge.
-- `search` — case-insensitive regex over all or one file, capped results.
-- `context` — lines around an evidence id.
-- `diagnose` — the final answer. The harness rejects it if an evidence id does not exist and lets
-  the model retry (at most twice).
+- `overview` — files, record counts, time ranges, warning/error counts per file, every scheduler event.
+- `anomalies` — warning-or-worse records clustered by template (numbers, hex and PCI ids masked),
+  split into DURING the job and BEFORE it started, with counts, first/last ids, offsets from job
+  start and nodes. Severity comes from kernel syslog priority, Python log levels, or generic
+  operational words; no fault signatures.
+- `metrics_summary` — per GPU: sample count, last sample, numeric ranges, and for categorical fields
+  the first record id showing each distinct value.
+- `search` — case-insensitive regex over all or one file, earliest or latest 30 matches.
+- `context` — records around an id in the same file.
+- `diagnose` — the final answer, rejected if it cites a non-existent id, more than five ids, or an
+  unknown node; at most two retries.
+
+History compaction: the newest three tool outputs and the anomaly digest are sent verbatim, older
+outputs are cut to 500 characters. Ollama silently drops the oldest messages (the system prompt
+first) when a request exceeds `num_ctx`, so the harness bounds requests itself. The tool budget is
+hard (14 calls); after it only `diagnose` is offered or executed.
 
 Model temperature 0 and a fixed seed; runs are still not guaranteed bit-identical across hardware.
 
@@ -120,3 +144,9 @@ Model temperature 0 and a fixed seed; runs are still not guaranteed bit-identica
 - Synthetic data; same author for generator and diagnosers.
 - One root cause per scenario; real incidents can have several.
 - Small model (9B, 4-bit) on a laptop GPU; results say nothing about larger models.
+- Localization is easier than it looks: `rules-generic` finds the right node, GPU and a grounded
+  line on most scenarios without any fault vocabulary. The hard part measured here is naming the fault.
+- Realism gaps found in review (see RESULTS.md): no in-job error-level noise; the NIC flap is never on
+  the faulty node; the scheduler's TIMEOUT line alone identifies the thermal case; storage faults are
+  always on node01; IB completion errors would normally make NCCL fail fast rather than wait for the
+  watchdog; a cgroup OOM would usually still appear in the host kernel log.

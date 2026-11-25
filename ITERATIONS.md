@@ -12,4 +12,18 @@ Model: `qwen3.5:9b` (Q4, Ollama 0.40.17 in WSL, RTX 5070 Laptop 8 GB), temperatu
 | 4 | anomaly digest splits DURING vs BEFORE the job; `metrics_summary` gives the first record id for each distinct categorical value; `search` gains `last=true` | **14/18** | Mean 51 s, max 90 s per scenario; largest request 9.2k tokens. Pre-job Xid 13 no longer chosen when anything in-job exists, but the failures moved: thermal-1, thermal-2 and ib-0 picked the *in-job* NIC flap that recovered within 2 s (the model even noted it recovered); storage-0 picked the pre-job Xid 13 even though the `Errno 28` record was listed under DURING. In thermal-1 it named the throttled GPU, then chose the flap. Conclusion: the evidence is now reachable; the remaining errors are the 9B model's adjudication. Deliberately not added: Xid-number knowledge in the prompt (that is signature hand-feeding). From here runs use a Linux build inside WSL, because Windows Application Control intermittently blocks freshly built binaries. |
 | 5 | same harness as 4, model thinking enabled (`-think`) | 11/18 | Worse and slower (mean 75 s vs 51 s). Thinking strengthened the anchoring on the recovered NIC flap: all 3 thermal, 2 of 3 OOM and 2 of 3 IB scenarios answered `ib_link_down` on the flap node. |
 
-**Frozen configuration for the test split: iteration 4** (thinking off, 14-call budget, compaction, tools as of commit after iteration 4). The test split was run with this configuration only.
+Iteration 4 was frozen and run once on the test split. An independent review then found that the
+agent design was **not** dev-only: the `STOPPED` flag in `metrics_summary`, the prompt line "a
+missing signal can be evidence too", and one unit test came from knowing test variant B (a lost GPU
+silently disappears from metrics), which never happens on dev. That run is kept as
+`results/agent-i4leak-test.*` and is not the headline.
+
+| iter | change | dev full | notes |
+|---|---|---|---|
+| v2 | remove the leak (STOPPED flag, prompt line, test); fix `\bslowdown\b` (never matched `hw_slowdown`, so throttled samples were never warnings and never reached the digest); hard tool budget; max 5 citations; unknown nodes rejected; anomaly digest exempt from compaction; neutral wording for pre-job templates; GPU guidance covers link faults | see RESULTS.md | Fixes come from the review, not from looking at test results. Dev run once as a regression check, then the test split twice. |
+
+**Provenance gaps (from the review):** iterations 1 and 2 left no result files; the 212k-token and
+406 s figures for iteration 2 come from a transcript that was deleted when the run was stopped. The
+code for iteration 3 was not committed on its own (it is part of `cc26561`). Result files do not
+record the run configuration; it is: `qwen3.5:9b` Q4, Ollama 0.40.17 in WSL, temperature 0, seed 7,
+`num_ctx` 16384, thinking off unless noted.
