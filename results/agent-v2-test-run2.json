@@ -1,0 +1,492 @@
+[
+  {
+    "scenario": "test-gpu_ecc_uncorrectable-0",
+    "split": "test",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "B",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "ib_link_down",
+      "node": "node04",
+      "gpu": -1,
+      "evidence": [
+        "node04/kern.log:28"
+      ],
+      "explanation": "The InfiniBand link on node04 went down at 09:25:58, causing communication failures between GPU ranks. This network failure led to collective operation timeouts and the job failure at 09:43:11. The IB link down is the root hardware event that explains the symptoms observed across all nodes."
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false,
+    "citation_precision": 0
+  },
+  {
+    "scenario": "test-gpu_ecc_uncorrectable-1",
+    "split": "test",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "B",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "gpu_ecc_uncorrectable",
+      "node": "node01",
+      "gpu": 5,
+      "evidence": [
+        "node01/kern.log:34",
+        "node01/train.log:236"
+      ],
+      "explanation": "The root cause is an ECC uncorrectable error on GPU 5 of node01. The NVRM Xid 94 error at 09:50:37 shows \"Contained: CE User Channel (0x9)\" indicating an uncorrectable ECC error, which caused a CUDA illegal memory access in the training process. This hardware fault led to collective operation timeouts across all ranks as the job failed."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 0.5
+  },
+  {
+    "scenario": "test-gpu_ecc_uncorrectable-2",
+    "split": "test",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "B",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "gpu_ecc_uncorrectable",
+      "node": "node02",
+      "gpu": 0,
+      "evidence": [
+        "node02/kern.log:30"
+      ],
+      "explanation": "The root cause is an uncorrectable ECC error on node02 GPU 0. The kernel log shows NVRM Xid 94 with \"Contained: CE User Channel (0x9)\" indicating a hardware memory error that cannot be corrected, which would cause the GPU to fail and trigger collective timeouts across all ranks."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_fell_off_bus-0",
+    "split": "test",
+    "fault": "gpu_fell_off_bus",
+    "variant": "B",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node01",
+      "gpu": 6,
+      "evidence": [
+        "node01/kern.log:35",
+        "node01/kern.log:36"
+      ],
+      "explanation": "The root cause is GPU 6 on node01 falling off the bus. At 09:47:10, the kernel logs show NVRM errors for GPU 0000:ba:00.0 (GPU index 6): RmInitAdapter failed with error code 0x26:0x56:1474, followed by rm_init_adapter failed. This caused the GPU to become unresponsive, leading to metrics collection stopping early (only 37 samples vs 49 for other GPUs) and subsequent collective operation timeouts when other ranks tried to communicate with it."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_fell_off_bus-1",
+    "split": "test",
+    "fault": "gpu_fell_off_bus",
+    "variant": "B",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node04",
+      "gpu": 4,
+      "evidence": [
+        "node04/kern.log:32",
+        "node04/kern.log:33"
+      ],
+      "explanation": "GPU 4 on node04 (PCI 0000:9a:00.0) fell off the PCIe bus, causing RmInitAdapter failures at 09:29:49. This GPU stopped reporting metrics early (only 30 samples vs 42 for others), and eventually caused collective operation timeouts across all ranks when the job tried to use that GPU."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_fell_off_bus-2",
+    "split": "test",
+    "fault": "gpu_fell_off_bus",
+    "variant": "B",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node01",
+      "gpu": 0,
+      "evidence": [
+        "node01/kern.log:31",
+        "node01/kern.log:32"
+      ],
+      "explanation": "GPU 0 on node01 fell off the bus, indicated by NVRM error code 0x26 (RmInitAdapter failed). This caused the GPU to become unresponsive, leading to collective operation timeouts across all ranks when NCCL tried to communicate with the offline GPU."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_thermal_slowdown-0",
+    "split": "test",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "B",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "ib_link_down",
+      "node": "node03",
+      "gpu": -1,
+      "evidence": [
+        "node03/kern.log:28"
+      ],
+      "explanation": "The root cause is an InfiniBand link down event on node03 at 17:08:44, which occurred during the job. This network adapter failure would cause collective operation timeouts and job failures across all ranks. The link went back up quickly but the transient network issue explains why the job failed."
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false,
+    "citation_precision": 0
+  },
+  {
+    "scenario": "test-gpu_thermal_slowdown-1",
+    "split": "test",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "B",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "ib_link_down",
+      "node": "node04",
+      "gpu": -1,
+      "evidence": [
+        "node04/kern.log:32"
+      ],
+      "explanation": "The root cause is an InfiniBand link down event on node04 at 12:30:32, which caused collective-operation timeouts and peer errors across all ranks. The IB link went down briefly but this was the hardware fault that triggered the job failure."
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false,
+    "citation_precision": 0
+  },
+  {
+    "scenario": "test-gpu_thermal_slowdown-2",
+    "split": "test",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "B",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "gpu_ecc_uncorrectable",
+      "node": "node04",
+      "gpu": 5,
+      "evidence": [
+        "node04/metrics.log:671"
+      ],
+      "explanation": "The metrics show node04/gpu5 had ecc_vol_uncorr=0..16 (uncorrectable ECC errors), while all other GPUs had ecc_vol_uncorr=0. Uncorrectable ECC errors indicate GPU memory corruption that cannot be fixed, causing the job to fail or degrade. This is the root cause of the training job failure."
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false,
+    "citation_precision": 0
+  },
+  {
+    "scenario": "test-host_oom-0",
+    "split": "test",
+    "fault": "host_oom",
+    "variant": "B",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "host_oom",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "scheduler.log:3"
+      ],
+      "explanation": "The scheduler detected an OOM kill event on node01 at 15:56:08, which caused the job to fail. The OOM event is a host memory issue, not a GPU fault, as evidenced by the scheduler.log:3 record showing \"Detected 1 oom_kill event in StepId=4298.0 on node01\"."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-host_oom-1",
+    "split": "test",
+    "fault": "host_oom",
+    "variant": "B",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "host_oom",
+      "node": "node02",
+      "gpu": -1,
+      "evidence": [
+        "scheduler.log:3",
+        "node02/train.log:233"
+      ],
+      "explanation": "The scheduler detected an OOM kill event on node02 at 18:47:37, and the training process on that node crashed shortly after with a RuntimeError in the dataloader. No GPU hardware faults were found; the root cause is host memory exhaustion on node02."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-host_oom-2",
+    "split": "test",
+    "fault": "host_oom",
+    "variant": "B",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "host_oom",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "scheduler.log:3"
+      ],
+      "explanation": "The scheduler detected an OOM kill event on node01 at 18:42:31, which killed some step tasks. This host memory exhaustion directly caused the job failure, with the subsequent collective timeouts and process shutdowns being symptoms of this root cause."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-ib_link_down-0",
+    "split": "test",
+    "fault": "ib_link_down",
+    "variant": "B",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "ib_link_down",
+      "node": "node03",
+      "gpu": -1,
+      "evidence": [
+        "node03/kern.log:29",
+        "node04/kern.log:29"
+      ],
+      "explanation": "The root cause is InfiniBand link failures on network adapters. node03 shows \"mlx5_core 0000:3c:00.0 ibp60s0: Link down\" at 10:11:45, and node04 shows \"Cable error, Power budget exceeded\" on mlx5_3 at 10:16:16. These IB link failures caused NCCL communication errors and collective operation timeouts that led to job failure."
+    },
+    "type": true,
+    "node": false,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 0.5
+  },
+  {
+    "scenario": "test-ib_link_down-1",
+    "split": "test",
+    "fault": "ib_link_down",
+    "variant": "B",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "ib_link_down",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/kern.log:37"
+      ],
+      "explanation": "At 09:35:24, node01's mlx5_core reported \"Cable error, Power budget exceeded\" on the InfiniBand link. This hardware failure caused persistent IB communication failures, leading to NCCL collective timeouts and job termination about 5 minutes later."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-ib_link_down-2",
+    "split": "test",
+    "fault": "ib_link_down",
+    "variant": "B",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "ib_link_down",
+      "node": "node04",
+      "gpu": -1,
+      "evidence": [
+        "node04/kern.log:33"
+      ],
+      "explanation": "The root cause is an InfiniBand network interface failure on node04. At 12:18:38, mlx5_core reported \"Port module event[error]: module 2, Cable error, Power budget exceeded\" on PCI bus ID 0000:6c:00.0 (mlx5_2/ibp108s0). This persistent cable/power issue caused the InfiniBand link to fail, leading to collective NCCL timeouts across all ranks."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-nvlink_error-0",
+    "split": "test",
+    "fault": "nvlink_error",
+    "variant": "A",
+    "expected": "other",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node03",
+      "gpu": 1,
+      "evidence": [
+        "node03/kern.log:36"
+      ],
+      "explanation": "The job failed due to a fatal NVLink error (Xid 74) on GPU 1 of node03, as shown by \"NVRM: Xid (PCI:0000:2a:00): 74... NVLink: fatal error detected on link 3\". This caused the GPU to fall off the bus, leading to NCCL operation failures and collective timeouts across all ranks."
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-nvlink_error-1",
+    "split": "test",
+    "fault": "nvlink_error",
+    "variant": "A",
+    "expected": "other",
+    "predicted": {
+      "fault": "gpu_ecc_uncorrectable",
+      "node": "node02",
+      "gpu": 5,
+      "evidence": [
+        "node02/kern.log:30"
+      ],
+      "explanation": "The root cause is a fatal NVLink error on GPU 5 (PCI:0000:ab:00.0) on node02, as shown by the NVRM Xid 74 error at 16:17:03. This fatal link error caused NCCL operations to fail and eventually led to collective timeouts across all ranks."
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-nvlink_error-2",
+    "split": "test",
+    "fault": "nvlink_error",
+    "variant": "A",
+    "expected": "other",
+    "predicted": {
+      "fault": "gpu_fell_off_bus",
+      "node": "node02",
+      "gpu": 3,
+      "evidence": [
+        "node02/kern.log:35"
+      ],
+      "explanation": "The root cause is a fatal NVLink error on GPU 3 of node02 (PCI 0000:5d:00.0), indicated by Xid 74 in the kernel log. This fatal NVLink error caused the GPU to become unresponsive, leading to NCCL operation failures and collective timeouts across all ranks."
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-nvlink_error-3",
+    "split": "test",
+    "fault": "nvlink_error",
+    "variant": "A",
+    "expected": "other",
+    "predicted": {
+      "fault": "other",
+      "node": "node03",
+      "gpu": 7,
+      "evidence": [
+        "node03/kern.log:33"
+      ],
+      "explanation": "The root cause is an NVLink fatal error detected on GPU 7 (PCI 0000:db:00) on node03. This hardware-level NVLink failure caused NCCL collective operation timeouts and ultimately led to the job failure. The error occurred at 09:40:32, approximately 5 minutes before the job failed at 09:45:36."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-storage_full-0",
+    "split": "test",
+    "fault": "storage_full",
+    "variant": "B",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "storage_full",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:107"
+      ],
+      "explanation": "The job failed because the checkpoint storage directory hit its disk quota limit at 17:53:08, causing checkpoint saves to fail. This storage_full condition led to subsequent NCCL collective timeouts and job failure with exit code 1. The earlier transient IB link down on node03 recovered quickly and was not the root cause."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-storage_full-1",
+    "split": "test",
+    "fault": "storage_full",
+    "variant": "B",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "storage_full",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:197"
+      ],
+      "explanation": "The job failed because the checkpoint save at 15:02:44 exceeded disk quota on node01. This storage_full condition caused the training to fail, with collective timeouts appearing later as symptoms of the underlying storage issue."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-storage_full-2",
+    "split": "test",
+    "fault": "storage_full",
+    "variant": "B",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "storage_full",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:213"
+      ],
+      "explanation": "The root cause is storage full on node01, evidenced by the checkpoint save failure with \"Disk quota exceeded\" error at 13:57:23. This caused subsequent collective operation timeouts as ranks could not complete their work due to failed checkpoints. The IB link down on node03 was transient and recovered quickly, so it is not the root cause."
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  }
+]

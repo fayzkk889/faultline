@@ -1,0 +1,177 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are an on-call infrastructure engineer diagnosing why a multi-node GPU training job failed or degraded.\nYou can only see the logs through the tools. Work like a careful engineer:\n- Collective-operation timeouts, peer errors and job failures are usually SYMPTOMS that appear on every rank. Look for the earliest hardware, host or storage event that explains them, on one specific node.\n- Ignore events from before the job started and conditions that recovered on their own.\n- Per-node clocks can be skewed by a few seconds, so do not decide only by which timestamp is earliest across nodes.\n- Kernel lines name GPUs by PCI bus id; map them to a GPU index with the node's hw.txt (search for the bus id).\n- A missing signal can be evidence too (for example a GPU that stops reporting metrics).\n- Older tool outputs are shortened as you go. When you find a record you may cite, write its id in your reply.\n\nAnswer by calling diagnose exactly once, with:\n- fault: one of gpu_fell_off_bus, gpu_ecc_uncorrectable, ib_link_down, host_oom, gpu_thermal_slowdown, storage_full, or other (a real root fault that is none of these).\n- node: e.g. node03.\n- gpu: the GPU index on that node, or -1 if the fault is not a single GPU (network, host memory, storage).\n- evidence: ids (like node03/kern.log:812) of the log records that directly show the root fault, copied exactly from tool output. Cite the root-cause records, not the timeouts.\n- explanation: two or three sentences."
+    },
+    {
+      "role": "user",
+      "content": "The job's logs are loaded. Find the root cause. Start with overview or anomalies."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "overview",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "file | records | warn | error | first | last\nnode01/hw.txt | 13 | 0 | 0 | - | -\nnode01/kern.log | 30 | 0 | 0 | 2026-03-14 07:46:57 | 09:39:37\nnode01/metrics.log | 376 | 0 | 0 | 2026-03-14 09:15:57 | 09:38:57\nnode01/train.log | 211 | 8 | 16 | 2026-03-14 09:16:57 | 09:38:16\nnode02/hw.txt | 13 | 0 | 0 | - | -\nnode02/kern.log | 37 | 0 | 2 | 2026-03-14 07:47:02 | 09:38:43\nnode02/metrics.log | 376 | 0 | 0 | 2026-03-14 09:16:02 | 09:39:02\nnode02/train.log | 207 | 8 | 15 | 2026-03-14 09:17:02 | 09:38:21\nnode03/hw.txt | 13 | 0 | 0 | - | -\nnode03/kern.log | 29 | 0 | 0 | 2026-03-14 07:47:01 | 09:39:10\nnode03/metrics.log | 376 | 0 | 0 | 2026-03-14 09:16:01 | 09:39:01\nnode03/train.log | 208 | 8 | 16 | 2026-03-14 09:17:01 | 09:38:20\nnode04/hw.txt | 13 | 0 | 0 | - | -\nnode04/kern.log | 36 | 1 | 0 | 2026-03-14 07:47:00 | 09:36:49\nnode04/metrics.log | 376 | 0 | 0 | 2026-03-14 09:16:00 | 09:39:00\nnode04/train.log | 208 | 8 | 16 | 2026-03-14 09:17:00 | 09:38:19\nscheduler.log | 4 | 0 | 1 | 2026-03-14 09:17:00 | 09:38:22\n\nscheduler.log:\nscheduler.log:1 09:17:00.000 sched: Allocate JobId=4851 NodeList=node[01-04] #CPUs=384 Partition=train\nscheduler.log:2 09:17:01.000 job 4851 step 0 started ntasks=32\nscheduler.log:3 09:38:20.000 job 4851 step 0 FAILED exit_code=1 (one or more tasks exited with non-zero status)\nscheduler.log:4 09:38:22.000 _job_complete: JobId=4851 WEXITSTATUS 1\n\nNote: per-node clocks may be skewed by a few seconds.\n",
+      "tool_name": "overview"
+    },
+    {
+      "role": "assistant",
+      "content": "The job failed at 09:38:20 with exit code 1. Let me check the anomalies to see if there are warning-or-worse records that might indicate the root cause.",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "anomalies",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "job start (scheduler): 2026-03-14 09:17:01\nDURING the job: 7 warning/error templates, ordered by first occurrence:\n- x32 first=node01/train.log:3 09:16:57.768 (+-3s) last=node04/train.log:16 nodes=node01,node02,node03,node04\n  example: [rank 2] NCCL WARN NET/Plugin: Could not find: libnccl-net.so. Using internal network plugin.\n- x1 first=node04/kern.log:29 09:20:55.282 (+3m54s) last=node04/kern.log:29 nodes=node04\n  example: mlx5_core 0000:3c:00.0 ibp60s0: Link down\n- x1 first=node02/kern.log:35 09:33:19.494 (+16m18s) last=node02/kern.log:35 nodes=node02\n  example: NVRM: Xid (PCI:0000:5d:00): 74, pid=92050, name=python3, NVLink: fatal error detected on link 3(0x0, 0x0, 0x10000, 0x0, 0x0, 0x0, 0x0)\n- x1 first=node02/train.log:193 09:33:19.650 (+16m19s) last=node02/train.log:193 nodes=node02\n  example: [rank 11] NCCL operation failed | Traceback (most recent call last): |   File \"/workspace/train.py\", line 430, in train_step |     dist.all_reduce(grads) | torch.distributed.DistBackendError: NCCL error in: ProcessGroupNCCL.cpp:2033, unhand...\n- x31 first=node01/train.log:196 09:38:14.407 (+21m13s) last=node04/train.log:207 nodes=node01,node02,node03,node04\n  example: [rank 6] [PG 0 Rank 6] Watchdog caught collective operation timeout: WorkNCCL(SeqNum=48586, OpType=ALLREDUCE, NumelIn=262144, NumelOut=262144, Timeout(ms)=300000) ran for 300027 milliseconds before timing out.\n- x31 first=node01/train.log:197 09:38:14.412 (+21m13s) last=node04/train.log:208 nodes=node01,node02,node03,node04\n  example: [rank 6] [PG 0 Rank 6] To avoid data inconsistency, we are taking the entire process down.\n- x1 first=scheduler.log:3 09:38:20.000 (+21m19s) last=scheduler.log:3 nodes=\n  example: job 4851 step 0 FAILED exit_code=1 (one or more tasks exited with non-zero status)\n\nBEFORE the job started (from earlier work on these hosts; cannot have caused this job's failure): 1 templates\n- x1 first=node02/kern.log:14 08:30:02.494 (BEFORE job start, -46m59s) last=node02/kern.log:14 nodes=node02\n  example: NVRM: Xid (PCI:0000:ab:00): 13, pid=62968, name=python3, Graphics SM Warp Exception on (GPC 1, TPC 2, SM 0): Out Of Range Address\n",
+      "tool_name": "anomalies"
+    },
+    {
+      "role": "assistant",
+      "content": "I see several interesting anomalies. Let me focus on the root cause:\n\n1. There's an IB link down event on node04 at 09:20:55 (mlx5_core ibp60s0: Link down)\n2. There's a fatal NVLink error on node02 at 09:33:19 (NVRM: Xid 74, NVLink: fatal error detected on link 3)\n3. Then collective timeouts occur at 09:38:14\n\nThe IB link down on node04 happened first, but let me check if there's a GPU that fell off the bus or other hardware issues. Let me look at the metrics summary to see which GPUs stopped reporting early.",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "metrics_summary",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "per GPU over all samples: samples, last sample, then each field as min..max (numeric) or distinct values\nnode01/gpu0 n=47 last=node01/metrics.log:369 temp_c=34..67 sm_mhz=1980 power_w=91..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode01/gpu1 n=47 last=node01/metrics.log:370 temp_c=34..67 sm_mhz=1980 power_w=90..688 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode01/gpu2 n=47 last=node01/metrics.log:371 temp_c=34..67 sm_mhz=1980 power_w=92..688 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode01/gpu3 n=47 last=node01/metrics.log:372 temp_c=34..67 sm_mhz=1980 power_w=93..688 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode01/gpu4 n=47 last=node01/metrics.log:373 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode01/gpu5 n=47 last=node01/metrics.log:374 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode01/gpu6 n=47 last=node01/metrics.log:375 temp_c=34..67 sm_mhz=1980 power_w=90..686 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode01/gpu7 n=47 last=node01/metrics.log:376 temp_c=34..67 sm_mhz=1980 power_w=90..687 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode02/gpu0 n=47 last=node02/metrics.log:369 temp_c=34..67 sm_mhz=1980 power_w=93..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode02/gpu1 n=47 last=node02/metrics.log:370 temp_c=34..67 sm_mhz=1980 power_w=90..686 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode02/gpu2 n=47 last=node02/metrics.log:371 temp_c=35..67 sm_mhz=1980 power_w=90..682 util=0..99 ecc_sbe=1..5 ecc_dbe=0 clocks_event=none\nnode02/gpu3 n=47 last=node02/metrics.log:372 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode02/gpu4 n=47 last=node02/metrics.log:373 temp_c=34..67 sm_mhz=1980 power_w=93..687 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode02/gpu5 n=47 last=node02/metrics.log:374 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode02/gpu6 n=47 last=node02/metrics.log:375 temp_c=34..67 sm_mhz=1980 power_w=91..687 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode02/gpu7 n=47 last=node02/metrics.log:376 temp_c=34..67 sm_mhz=1980 power_w=90..686 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode03/gpu0 n=47 last=node03/metrics.log:369 temp_c=34..67 sm_mhz=1980 power_w=91..685 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode03/gpu1 n=47 last=node03/metrics.log:370 temp_c=34..67 sm_mhz=1980 power_w=90..685 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode03/gpu2 n=47 last=node03/metrics.log:371 temp_c=34..67 sm_mhz=1980 power_w=90..680 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode03/gpu3 n=47 last=node03/metrics.log:372 temp_c=34..67 sm_mhz=1980 power_w=93..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode03/gpu4 n=47 last=node03/metrics.log:373 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode03/gpu5 n=47 last=node03/metrics.log:374 temp_c=34..67 sm_mhz=1980 power_w=90..688 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode03/gpu6 n=47 last=node03/metrics.log:375 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode03/gpu7 n=47 last=node03/metrics.log:376 temp_c=34..67 sm_mhz=1980 power_w=91..685 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode04/gpu0 n=47 last=node04/metrics.log:369 temp_c=34..67 sm_mhz=1980 power_w=91..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode04/gpu1 n=47 last=node04/metrics.log:370 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode04/gpu2 n=47 last=node04/metrics.log:371 temp_c=34..67 sm_mhz=1980 power_w=91..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode04/gpu3 n=47 last=node04/metrics.log:372 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode04/gpu4 n=47 last=node04/metrics.log:373 temp_c=34..67 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode04/gpu5 n=47 last=node04/metrics.log:374 temp_c=34..67 sm_mhz=1980 power_w=91..688 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode04/gpu6 n=47 last=node04/metrics.log:375 temp_c=34..89 sm_mhz=1980 power_w=90..689 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\nnode04/gpu7 n=47 last=node04/metrics.log:376 temp_c=34..67 sm_mhz=1980 power_w=91..688 util=0..99 ecc_sbe=0 ecc_dbe=0 clocks_event=none\n",
+      "tool_name": "metrics_summary"
+    },
+    {
+      "role": "assistant",
+      "content": "All GPUs report 47 samples, so none stopped early. Let me look at the kernel logs more closely to find the root cause. The anomalies showed:\n\n1. node04/kern.log:29 - IB link down (mlx5_core)\n2. node02/kern.log:35 - NVLink fatal error on link 3\n\nLet me check the context around these events and also look at the hw.txt files to understand GPU mapping.",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "context",
+            "arguments": {
+              "id": "node04/kern.log:29",
+              "before": 5,
+              "after": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "  node04/kern.log:24 09:05:44.282 systemd-journald[812]: Data hash table of /var/log/journal/system.journal has a fill level at 75.1, suggesting rotation.\n  node04/kern.log:25 09:08:27.282 perf: interrupt took too long (2512 \u003e 2500), lowering kernel.perf_event_max_sample_rate to 79500\n  node04/kern.log:26 09:11:41.282 NFSD: Using nfsdcld client tracking operations.\n  node04/kern.log:27 09:14:49.282 audit: type=1400 audit(1773479689.123:4853): apparmor=\"STATUS\" operation=\"profile_replace\" name=\"snap-update-ns\"\n  node04/kern.log:28 09:18:51.282 nvidia-nvlink: Unregistered Nvlink Core, major device number 234\n\u003e node04/kern.log:29 09:20:55.282 mlx5_core 0000:3c:00.0 ibp60s0: Link down\n  node04/kern.log:30 09:20:56.539 mlx5_core 0000:3c:00.0 ibp60s0: Link up\n  node04/kern.log:31 09:23:02.282 perf: interrupt took too long (2512 \u003e 2500), lowering kernel.perf_event_max_sample_rate to 79500\n  node04/kern.log:32 09:24:44.282 audit: type=1400 audit(1773480284.123:3220): apparmor=\"STATUS\" operation=\"profile_replace\" name=\"snap-update-ns\"\n  node04/kern.log:33 09:27:37.282 systemd-journald[812]: Data hash table of /var/log/journal/system.journal has a fill level at 75.1, suggesting rotation.\n  node04/kern.log:34 09:31:22.282 NFSD: Using nfsdcld client tracking operations.\n",
+      "tool_name": "context"
+    },
+    {
+      "role": "assistant",
+      "content": "The IB link down on node04 was transient (link went down at 09:20:55 and back up at 09:20:56). Let me check the NVLink fatal error on node02 more closely.",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "context",
+            "arguments": {
+              "id": "node02/kern.log:35",
+              "before": 5,
+              "after": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "  node02/kern.log:30 09:22:23.494 NFSD: Using nfsdcld client tracking operations.\n  node02/kern.log:31 09:24:14.494 nvidia-nvlink: Unregistered Nvlink Core, major device number 234\n  node02/kern.log:32 09:27:40.494 audit: type=1400 audit(1773480458.123:9350): apparmor=\"STATUS\" operation=\"profile_replace\" name=\"snap-update-ns\"\n  node02/kern.log:33 09:29:59.494 systemd-journald[812]: Data hash table of /var/log/journal/system.journal has a fill level at 75.1, suggesting rotation.\n  node02/kern.log:34 09:33:11.494 perf: interrupt took too long (2512 \u003e 2500), lowering kernel.perf_event_max_sample_rate to 79500\n\u003e node02/kern.log:35 09:33:19.494 NVRM: Xid (PCI:0000:5d:00): 74, pid=92050, name=python3, NVLink: fatal error detected on link 3(0x0, 0x0, 0x10000, 0x0, 0x0, 0x0, 0x0)\n  node02/kern.log:36 09:36:21.494 perf: interrupt took too long (2512 \u003e 2500), lowering kernel.perf_event_max_sample_rate to 79500\n  node02/kern.log:37 09:38:43.494 systemd-journald[812]: Data hash table of /var/log/journal/system.journal has a fill level at 75.1, suggesting rotation.\n",
+      "tool_name": "context"
+    },
+    {
+      "role": "assistant",
+      "content": "I found the root cause! The NVLink fatal error on node02 at 09:33:19 (Xid 74) is the key event. Now I need to map the PCI bus ID to a GPU index. Let me check the hw.txt file for node02.",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "search",
+            "arguments": {
+              "file": "node02/hw.txt",
+              "pattern": "PCI|bus"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "node02/hw.txt:2 - gpu 0 pci 0000:18:00.0 model H100-SXM5-80GB uuid GPU-97286f97\nnode02/hw.txt:3 - gpu 1 pci 0000:2a:00.0 model H100-SXM5-80GB uuid GPU-93c381b5\nnode02/hw.txt:4 - gpu 2 pci 0000:3a:00.0 model H100-SXM5-80GB uuid GPU-611358fc\nnode02/hw.txt:5 - gpu 3 pci 0000:5d:00.0 model H100-SXM5-80GB uuid GPU-2f33dce7\nnode02/hw.txt:6 - gpu 4 pci 0000:9a:00.0 model H100-SXM5-80GB uuid GPU-1fd37ceb\nnode02/hw.txt:7 - gpu 5 pci 0000:ab:00.0 model H100-SXM5-80GB uuid GPU-3ccda29f\nnode02/hw.txt:8 - gpu 6 pci 0000:ba:00.0 model H100-SXM5-80GB uuid GPU-34c3fa2f\nnode02/hw.txt:9 - gpu 7 pci 0000:db:00.0 model H100-SXM5-80GB uuid GPU-d3695390\nnode02/hw.txt:10 - nic mlx5_0 pci 0000:0c:00.0 netdev ibp12s0 port 1\nnode02/hw.txt:11 - nic mlx5_1 pci 0000:3c:00.0 netdev ibp60s0 port 1\nnode02/hw.txt:12 - nic mlx5_2 pci 0000:6c:00.0 netdev ibp108s0 port 1\nnode02/hw.txt:13 - nic mlx5_3 pci 0000:9c:00.0 netdev ibp156s0 port 1\n",
+      "tool_name": "search"
+    },
+    {
+      "role": "assistant",
+      "content": "The NVLink fatal error occurred on PCI bus ID 0000:5d:00.0, which corresponds to GPU index 3 on node02 (from hw.txt line 5).\n\nNow let me verify this is the root cause by checking if there are any other related events. The Xid 74 error indicates an NVLink fatal error, which would cause collective timeouts in NCCL operations. This matches the job failure at 09:38:20.\n\nLet me also check if there were any other GPU-related errors on node02 to confirm this is the root cause.",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "search",
+            "arguments": {
+              "file": "node02/kern.log",
+              "pattern": "Xid|NVLink"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "node02/kern.log:1 07:47:02.494 nvidia-nvlink: Unregistered Nvlink Core, major device number 234\nnode02/kern.log:2 07:50:15.494 nvidia-nvlink: Unregistered Nvlink Core, major device number 234\nnode02/kern.log:11 08:19:53.494 nvidia-nvlink: Unregistered Nvlink Core, major device number 234\nnode02/kern.log:14 08:30:02.494 NVRM: Xid (PCI:0000:ab:00): 13, pid=62968, name=python3, Graphics SM Warp Exception on (GPC 1, TPC 2, SM 0): Out Of Range Address\nnode02/kern.log:18 08:44:36.494 nvidia-nvlink: Unregistered Nvlink Core, major device number 234\nnode02/kern.log:20 08:51:36.494 nvidia-nvlink: Unregistered Nvlink Core, major device number 234\nnode02/kern.log:31 09:24:14.494 nvidia-nvlink: Unregistered Nvlink Core, major device number 234\nnode02/kern.log:35 09:33:19.494 NVRM: Xid (PCI:0000:5d:00): 74, pid=92050, name=python3, NVLink: fatal error detected on link 3(0x0, 0x0, 0x10000, 0x0, 0x0, 0x0, 0x0)\n",
+      "tool_name": "search"
+    },
+    {
+      "role": "assistant",
+      "content": "The Xid 74 NVLink fatal error is the only critical hardware fault. The other events are either transient (Unregistered Nvlink Core messages) or unrelated (Xid 13 graphics warp exception).\n\nNow I have all the information needed:\n- **fault**: gpu_ecc_uncorrectable (Xid 74 indicates an uncorrectable ECC error on NVLink)\n- **node**: node02\n- **gpu**: 3 (PCI bus ID 0000:5d:00.0 maps to GPU index 3)\n- **evidence**: node02/kern.log:35 (the Xid 74 NVLink fatal error record)\n- **explanation**: The job failed due to an uncorrectable ECC error on GPU 3 of node02, indicated by Xid 74 NVLink fatal error. This caused collective timeouts in NCCL operations and the job termination at 09:38:20.",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "diagnose",
+            "arguments": {
+              "fault": "gpu_ecc_uncorrectable",
+              "node": "node02",
+              "gpu": 3,
+              "evidence": [
+                "node02/kern.log:35"
+              ],
+              "explanation": "The job failed due to an uncorrectable ECC error on GPU 3 of node02, indicated by Xid 74 NVLink fatal error detected on link 3. This hardware fault caused collective timeouts in NCCL operations and the job termination at 09:38:20."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "accepted",
+      "tool_name": "diagnose"
+    }
+  ],
+  "tool_calls": 7,
+  "rejected_answers": 0,
+  "prompt_tokens": 32650,
+  "output_tokens": 1157,
+  "wall_seconds": 47.681267909,
+  "forced_answer": false,
+  "max_prompt_tokens": 5741
+}
