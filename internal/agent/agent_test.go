@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -112,7 +113,7 @@ func TestLoopForcesAnswerAfterBudget(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		replies = append(replies, `search|{"pattern":"Xid","limit":"3"}`)
 	}
-	good, _ := json.Marshal(map[string]any{"fault": truth.Expected, "node": truth.Node, "gpu": truth.GPU, "evidence": truth.RootEvidence, "explanation": "x"})
+	good, _ := json.Marshal(map[string]any{"fault": truth.Expected, "node": truth.Node, "gpu": truth.GPU, "evidence": truth.RootEvidence[:1], "explanation": "x"})
 	replies = append(replies, "diagnose|"+string(good))
 	fake := &scripted{replies: replies}
 	srv := httptest.NewServer(fake)
@@ -190,37 +191,6 @@ func TestAnomaliesMarksPreJobEvents(t *testing.T) {
 	}
 }
 
-func TestMetricsSummaryFlagsStoppedGPU(t *testing.T) {
-	specs, _ := scenario.Suite("test")
-	var spec scenario.Spec
-	for _, s := range specs {
-		if s.Fault == "gpu_fell_off_bus" {
-			spec = s
-			break
-		}
-	}
-	dir := filepath.Join(t.TempDir(), "s")
-	truth, err := scenario.Generate(spec, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set, err := logs.Load(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	out := (&Tools{set: set}).MetricsSummary()
-	var flagged []string
-	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, "STOPPED") {
-			flagged = append(flagged, strings.Fields(line)[0])
-		}
-	}
-	want := truth.Node + "/gpu" + string(rune('0'+truth.GPU))
-	if len(flagged) != 1 || flagged[0] != want {
-		t.Fatalf("flagged %v, want [%s]", flagged, want)
-	}
-}
-
 func TestSearchLastReturnsLatestMatches(t *testing.T) {
 	set, _ := loadDev(t, 0)
 	tl := &Tools{set: set}
@@ -276,4 +246,39 @@ func TestMetricsSummaryCitesFirstThrottledSample(t *testing.T) {
 		}
 	}
 	t.Fatalf("no throttled first@ id in:\n%s", out)
+}
+
+func TestBudgetIsHard(t *testing.T) {
+	set, truth := loadDev(t, 0)
+	good, _ := json.Marshal(map[string]any{"fault": truth.Expected, "node": truth.Node, "gpu": truth.GPU, "evidence": truth.RootEvidence[:1], "explanation": "x"})
+	var replies []string
+	for i := 0; i < 7; i++ { // two more than the budget of 5
+		replies = append(replies, `overview|{}`)
+	}
+	replies = append(replies, "diagnose|"+string(good))
+	srv := httptest.NewServer(&scripted{replies: replies})
+	defer srv.Close()
+	_, tr, err := Diagnose(context.Background(), cfgFor(srv.URL), set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tr.ToolCalls != 5 {
+		t.Fatalf("executed %d tool calls, budget is 5", tr.ToolCalls)
+	}
+}
+
+func TestDiagnosisRejectsUnknownNodeAndTooManyCitations(t *testing.T) {
+	set, truth := loadDev(t, 0)
+	raw, _ := json.Marshal(map[string]any{"fault": truth.Expected, "node": "node99", "gpu": truth.GPU, "evidence": truth.RootEvidence[:1], "explanation": "x"})
+	if _, p := parseDiagnosis(raw, set); !strings.Contains(p, "node99") {
+		t.Fatalf("problem = %q", p)
+	}
+	many := []string{}
+	for i := 1; i <= 6; i++ {
+		many = append(many, fmt.Sprintf("scheduler.log:%d", 1))
+	}
+	raw, _ = json.Marshal(map[string]any{"fault": truth.Expected, "node": truth.Node, "gpu": truth.GPU, "evidence": many, "explanation": "x"})
+	if _, p := parseDiagnosis(raw, set); !strings.Contains(p, "at most") {
+		t.Fatalf("problem = %q", p)
+	}
 }

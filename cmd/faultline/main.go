@@ -30,7 +30,7 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage:
   faultline gen   -split dev|test -out DIR
-  faultline rules -data DIR [-full] -out FILE.json
+  faultline rules -data DIR [-full | -generic] -out FILE.json
   faultline agent -data DIR [-model M] [-think] -out FILE.json -traces DIR`)
 	os.Exit(2)
 }

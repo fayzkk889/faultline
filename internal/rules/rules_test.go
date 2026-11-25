@@ -47,3 +47,34 @@ func TestRecordedBaselineNumbers(t *testing.T) {
 		}
 	}
 }
+
+func TestGenericBaselineNumbers(t *testing.T) {
+	for split, want := range map[string][2]int{"dev": {0, 12}, "test": {4, 19}} {
+		specs, err := scenario.Suite(split)
+		if err != nil {
+			t.Fatal(err)
+		}
+		full, node := 0, 0
+		for _, s := range specs {
+			dir := filepath.Join(t.TempDir(), s.Name)
+			truth, err := scenario.Generate(s, dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			set, err := logs.Load(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := eval.Score(truth, Generic(set), set)
+			if r.Full {
+				full++
+			}
+			if r.Node {
+				node++
+			}
+		}
+		if full != want[0] || node != want[1] {
+			t.Errorf("%s: full=%d node=%d, recorded %v", split, full, node, want)
+		}
+	}
+}

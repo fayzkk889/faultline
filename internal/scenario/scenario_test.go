@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/fayzkk889/faultline/internal/logs"
 	"github.com/fayzkk889/faultline/internal/scenario"
@@ -111,5 +113,41 @@ func TestNodesAreSkewed(t *testing.T) {
 	}
 	if len(distinct) < 2 {
 		t.Fatalf("expected skewed metrics start times across nodes, got %v", first)
+	}
+}
+
+// Root evidence must be on the faulty node, not before the fault (allowing for
+// clock skew), and for GPU faults must name that GPU's PCI id or gpu index.
+func TestRootEvidenceIsCausallyPlaced(t *testing.T) {
+	for _, spec := range suites(t) {
+		dir := filepath.Join(t.TempDir(), spec.Name)
+		truth, err := scenario.Generate(spec, dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		set, err := logs.Load(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tf, err := time.Parse(time.RFC3339Nano, truth.FaultTime)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range truth.RootEvidence {
+			ev, _ := set.Get(id)
+			if ev.TS.Before(tf.Add(-4 * time.Second)) {
+				t.Errorf("%s: root evidence %s at %s precedes the fault at %s", spec.Name, id, ev.TS, tf)
+			}
+			node := ev.Node
+			if node == "" {
+				node = truth.Node // scheduler lines name the node in text
+				if !strings.Contains(ev.Text, truth.Node) {
+					t.Errorf("%s: cluster-level evidence %s does not name %s", spec.Name, id, truth.Node)
+				}
+			}
+			if node != truth.Node {
+				t.Errorf("%s: root evidence %s on %s, truth %s", spec.Name, id, node, truth.Node)
+			}
+		}
 	}
 }

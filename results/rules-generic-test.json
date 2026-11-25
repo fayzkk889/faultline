@@ -1,0 +1,486 @@
+[
+  {
+    "scenario": "test-gpu_ecc_uncorrectable-0",
+    "split": "test",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "B",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": 6,
+      "evidence": [
+        "node01/kern.log:34"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_ecc_uncorrectable-1",
+    "split": "test",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "B",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": 5,
+      "evidence": [
+        "node01/kern.log:34"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_ecc_uncorrectable-2",
+    "split": "test",
+    "fault": "gpu_ecc_uncorrectable",
+    "variant": "B",
+    "expected": "gpu_ecc_uncorrectable",
+    "predicted": {
+      "fault": "other",
+      "node": "node02",
+      "gpu": 0,
+      "evidence": [
+        "node02/kern.log:30"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_fell_off_bus-0",
+    "split": "test",
+    "fault": "gpu_fell_off_bus",
+    "variant": "B",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": 6,
+      "evidence": [
+        "node01/kern.log:35"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_fell_off_bus-1",
+    "split": "test",
+    "fault": "gpu_fell_off_bus",
+    "variant": "B",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "other",
+      "node": "node04",
+      "gpu": 4,
+      "evidence": [
+        "node04/kern.log:32"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_fell_off_bus-2",
+    "split": "test",
+    "fault": "gpu_fell_off_bus",
+    "variant": "B",
+    "expected": "gpu_fell_off_bus",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": 0,
+      "evidence": [
+        "node01/kern.log:31"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-gpu_thermal_slowdown-0",
+    "split": "test",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "B",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "other",
+      "node": "",
+      "gpu": -1,
+      "evidence": [
+        "scheduler.log:3"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false,
+    "citation_precision": 0
+  },
+  {
+    "scenario": "test-gpu_thermal_slowdown-1",
+    "split": "test",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "B",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "other",
+      "node": "",
+      "gpu": -1,
+      "evidence": [
+        "scheduler.log:3"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false,
+    "citation_precision": 0
+  },
+  {
+    "scenario": "test-gpu_thermal_slowdown-2",
+    "split": "test",
+    "fault": "gpu_thermal_slowdown",
+    "variant": "B",
+    "expected": "gpu_thermal_slowdown",
+    "predicted": {
+      "fault": "other",
+      "node": "",
+      "gpu": -1,
+      "evidence": [
+        "scheduler.log:3"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": false,
+    "gpu": false,
+    "grounded": false,
+    "full": false,
+    "citation_precision": 0
+  },
+  {
+    "scenario": "test-host_oom-0",
+    "split": "test",
+    "fault": "host_oom",
+    "variant": "B",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:170"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-host_oom-1",
+    "split": "test",
+    "fault": "host_oom",
+    "variant": "B",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "other",
+      "node": "node02",
+      "gpu": -1,
+      "evidence": [
+        "node02/train.log:233"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-host_oom-2",
+    "split": "test",
+    "fault": "host_oom",
+    "variant": "B",
+    "expected": "host_oom",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:212"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-ib_link_down-0",
+    "split": "test",
+    "fault": "ib_link_down",
+    "variant": "B",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "other",
+      "node": "node04",
+      "gpu": -1,
+      "evidence": [
+        "node04/kern.log:29"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-ib_link_down-1",
+    "split": "test",
+    "fault": "ib_link_down",
+    "variant": "B",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/kern.log:37"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-ib_link_down-2",
+    "split": "test",
+    "fault": "ib_link_down",
+    "variant": "B",
+    "expected": "ib_link_down",
+    "predicted": {
+      "fault": "other",
+      "node": "node04",
+      "gpu": -1,
+      "evidence": [
+        "node04/kern.log:33"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-nvlink_error-0",
+    "split": "test",
+    "fault": "nvlink_error",
+    "variant": "A",
+    "expected": "other",
+    "predicted": {
+      "fault": "other",
+      "node": "node03",
+      "gpu": 1,
+      "evidence": [
+        "node03/kern.log:36"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-nvlink_error-1",
+    "split": "test",
+    "fault": "nvlink_error",
+    "variant": "A",
+    "expected": "other",
+    "predicted": {
+      "fault": "other",
+      "node": "node02",
+      "gpu": 5,
+      "evidence": [
+        "node02/kern.log:30"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-nvlink_error-2",
+    "split": "test",
+    "fault": "nvlink_error",
+    "variant": "A",
+    "expected": "other",
+    "predicted": {
+      "fault": "other",
+      "node": "node02",
+      "gpu": 3,
+      "evidence": [
+        "node02/kern.log:35"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-nvlink_error-3",
+    "split": "test",
+    "fault": "nvlink_error",
+    "variant": "A",
+    "expected": "other",
+    "predicted": {
+      "fault": "other",
+      "node": "node03",
+      "gpu": 7,
+      "evidence": [
+        "node03/kern.log:33"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": true,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": true,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-storage_full-0",
+    "split": "test",
+    "fault": "storage_full",
+    "variant": "B",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:107"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-storage_full-1",
+    "split": "test",
+    "fault": "storage_full",
+    "variant": "B",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:197"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  },
+  {
+    "scenario": "test-storage_full-2",
+    "split": "test",
+    "fault": "storage_full",
+    "variant": "B",
+    "expected": "storage_full",
+    "predicted": {
+      "fault": "other",
+      "node": "node01",
+      "gpu": -1,
+      "evidence": [
+        "node01/train.log:213"
+      ],
+      "explanation": "generic: earliest unique in-job error"
+    },
+    "type": false,
+    "node": true,
+    "gpu": true,
+    "grounded": true,
+    "full": false,
+    "citation_precision": 1
+  }
+]

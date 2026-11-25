@@ -18,7 +18,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-gpu_ecc_uncorrectable-1",
@@ -39,7 +40,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-gpu_ecc_uncorrectable-2",
@@ -60,7 +62,8 @@
     "node": true,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-gpu_fell_off_bus-0",
@@ -81,7 +84,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-gpu_fell_off_bus-1",
@@ -102,7 +106,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-gpu_fell_off_bus-2",
@@ -123,7 +128,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-gpu_thermal_slowdown-0",
@@ -142,7 +148,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-gpu_thermal_slowdown-1",
@@ -161,7 +168,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-gpu_thermal_slowdown-2",
@@ -180,7 +188,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-host_oom-0",
@@ -201,7 +210,8 @@
     "node": true,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-host_oom-1",
@@ -222,7 +232,8 @@
     "node": false,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-host_oom-2",
@@ -243,7 +254,8 @@
     "node": false,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-ib_link_down-0",
@@ -264,7 +276,8 @@
     "node": false,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-ib_link_down-1",
@@ -285,7 +298,8 @@
     "node": true,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-ib_link_down-2",
@@ -306,7 +320,8 @@
     "node": false,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-nvlink_error-0",
@@ -327,7 +342,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-nvlink_error-1",
@@ -348,7 +364,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-nvlink_error-2",
@@ -369,7 +386,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-nvlink_error-3",
@@ -390,7 +408,8 @@
     "node": false,
     "gpu": false,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-storage_full-0",
@@ -411,7 +430,8 @@
     "node": false,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-storage_full-1",
@@ -432,7 +452,8 @@
     "node": false,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   },
   {
     "scenario": "test-storage_full-2",
@@ -453,6 +474,7 @@
     "node": false,
     "gpu": true,
     "grounded": false,
-    "full": false
+    "full": false,
+    "citation_precision": 0
   }
 ]

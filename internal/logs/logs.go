@@ -252,7 +252,9 @@ func parseLine(src, raw string) (time.Time, string, Level, bool) {
 
 var (
 	errorWords = regexp.MustCompile(`(?i)\b(error|errors|fatal|failed|failure|killed|panic|exception|unable|timed out|timeout|exceeded|abort(ed)?)\b`)
-	warnWords  = regexp.MustCompile(`(?i)\b(warn(ing)?|down|lost|throttl\w*|slowdown|retry|retrying|degraded|drain)\b`)
+	// throttl/slowdown match inside identifiers such as hw_slowdown, where \b
+	// does not split on the underscore.
+	warnWords = regexp.MustCompile(`(?i)\b(warn(ing)?|down|lost|retry|retrying|degraded|drain)\b|throttl|slowdown`)
 )
 
 // inferLevel uses generic operational wording only. It must stay free of
@@ -265,4 +267,31 @@ func inferLevel(s string) Level {
 		return Warn
 	}
 	return Info
+}
+
+var (
+	maskHex = regexp.MustCompile(`0x[0-9a-fA-F]+|\b[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}(\.\d)?\b`)
+	maskNum = regexp.MustCompile(`\d+(\.\d+)?`)
+)
+
+// Template masks numbers, hex values and PCI addresses in a record's first
+// line, so records that differ only in values cluster together.
+func Template(e Event) string {
+	first := strings.SplitN(e.Text, "\n", 2)[0]
+	s := maskHex.ReplaceAllString(first, "<hex>")
+	s = maskNum.ReplaceAllString(s, "<n>")
+	return e.Source + ": " + s
+}
+
+// HasNode reports whether any record comes from node.
+func (s *Set) HasNode(node string) bool {
+	if node == "" {
+		return false
+	}
+	for _, e := range s.Events {
+		if e.Node == node {
+			return true
+		}
+	}
+	return false
 }

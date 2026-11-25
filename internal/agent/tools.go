@@ -85,18 +85,6 @@ func (t *Tools) Overview() string {
 	return b.String()
 }
 
-var (
-	maskHex = regexp.MustCompile(`0x[0-9a-fA-F]+|\b[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}(\.\d)?\b`)
-	maskNum = regexp.MustCompile(`\d+(\.\d+)?`)
-)
-
-func template(e logs.Event) string {
-	first := strings.SplitN(e.Text, "\n", 2)[0]
-	s := maskHex.ReplaceAllString(first, "<hex>")
-	s = maskNum.ReplaceAllString(s, "<n>")
-	return e.Source + ": " + s
-}
-
 // Anomalies clusters warning-or-worse records by template.
 func (t *Tools) Anomalies() string {
 	type cl struct {
@@ -111,7 +99,7 @@ func (t *Tools) Anomalies() string {
 		if e.Level < logs.Warn {
 			continue
 		}
-		k := template(e)
+		k := logs.Template(e)
 		c := by[k]
 		if c == nil {
 			c = &cl{tmpl: k, first: e, nodes: map[string]bool{}}
@@ -157,7 +145,7 @@ func (t *Tools) Anomalies() string {
 	fmt.Fprintf(&b, "DURING the job: %d warning/error templates, ordered by first occurrence:\n", len(during))
 	write(during)
 	if len(before) > 0 {
-		fmt.Fprintf(&b, "\nBEFORE the job started (from earlier work on these hosts; cannot have caused this job's failure): %d templates\n", len(before))
+		fmt.Fprintf(&b, "\nBEFORE the job started: %d templates\n", len(before))
 		write(before)
 	}
 	return b.String()
@@ -205,7 +193,6 @@ func (t *Tools) MetricsSummary() string {
 	}
 	rows := map[string]*row{}
 	var keys []string
-	lastByNode := map[string]time.Time{}
 	for _, e := range t.set.Events {
 		if e.Source != "metrics" {
 			continue
@@ -225,9 +212,6 @@ func (t *Tools) MetricsSummary() string {
 		}
 		r.samples++
 		r.last = e
-		if e.TS.After(lastByNode[e.Node]) {
-			lastByNode[e.Node] = e.TS
-		}
 		for _, name := range ord {
 			if name == "node" || name == "gpu" {
 				continue
@@ -259,13 +243,9 @@ func (t *Tools) MetricsSummary() string {
 	}
 	sort.Strings(keys)
 	var b strings.Builder
-	b.WriteString("per GPU over all samples: samples, last sample, then each field as min..max (numeric) or distinct values\n")
+	b.WriteString("per GPU over all samples: sample count, last sample id, then each field as min..max (numeric) or its distinct values with the first record showing each\n")
 	for _, k := range keys {
 		r := rows[k]
-		gap := ""
-		if d := lastByNode[r.node].Sub(r.last.TS); d > time.Minute {
-			gap = fmt.Sprintf(" STOPPED %s before node's last sample", d.Round(time.Second))
-		}
 		var parts []string
 		for _, name := range r.order {
 			f := r.fields[name]
@@ -292,7 +272,7 @@ func (t *Tools) MetricsSummary() string {
 			}
 			parts = append(parts, fmt.Sprintf("%s={%s}", name, strings.Join(vs, "; ")))
 		}
-		fmt.Fprintf(&b, "%s n=%d last=%s%s %s\n", k, r.samples, r.last.ID, gap, strings.Join(parts, " "))
+		fmt.Fprintf(&b, "%s n=%d last=%s %s\n", k, r.samples, r.last.ID, strings.Join(parts, " "))
 	}
 	return b.String()
 }

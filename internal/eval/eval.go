@@ -40,6 +40,10 @@ type Result struct {
 	Grounded bool `json:"grounded"`
 	Full     bool `json:"full"`
 
+	// Precision is the share of cited ids that are root evidence. Reported, not
+	// part of Full: it shows whether grounding came from a few precise citations.
+	Precision float64 `json:"citation_precision"`
+
 	InvalidCitations []string `json:"invalid_citations,omitempty"`
 	Error            string   `json:"error,omitempty"`
 }
@@ -73,6 +77,15 @@ func Score(t scenario.Truth, d Diagnosis, set *logs.Set) Result {
 			r.Grounded = true
 		}
 	}
+	hits := 0
+	for _, id := range d.Evidence {
+		if root[id] {
+			hits++
+		}
+	}
+	if len(d.Evidence) > 0 {
+		r.Precision = float64(hits) / float64(len(d.Evidence))
+	}
 	r.Full = r.Type && r.Node && r.GPU && r.Grounded
 	return r
 }
@@ -83,6 +96,7 @@ type Summary struct {
 	N                int
 	Type, Node, GPU  int
 	Grounded, Full   int
+	PrecisionSum     float64
 	InvalidCitations int
 	Errors           int
 }
@@ -102,6 +116,7 @@ func Summarize(rs []Result) []Summary {
 		s.GPU += b2i(r.GPU)
 		s.Grounded += b2i(r.Grounded)
 		s.Full += b2i(r.Full)
+		s.PrecisionSum += r.Precision
 		s.InvalidCitations += len(r.InvalidCitations)
 		if r.Error != "" {
 			s.Errors++
@@ -125,10 +140,10 @@ func b2i(b bool) int {
 // WriteTable prints a markdown summary and a per-scenario table.
 func WriteTable(w io.Writer, name string, rs []Result) {
 	fmt.Fprintf(w, "### %s\n\n", name)
-	fmt.Fprintln(w, "| split | n | full | type | node | gpu | grounded | invalid citations | errors |")
-	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|")
+	fmt.Fprintln(w, "| split | n | full | type | node | gpu | grounded | mean citation precision | invalid citations | errors |")
+	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|")
 	for _, s := range Summarize(rs) {
-		fmt.Fprintf(w, "| %s | %d | %d/%d | %d | %d | %d | %d | %d | %d |\n", s.Split, s.N, s.Full, s.N, s.Type, s.Node, s.GPU, s.Grounded, s.InvalidCitations, s.Errors)
+		fmt.Fprintf(w, "| %s | %d | %d/%d | %d | %d | %d | %d | %.2f | %d | %d |\n", s.Split, s.N, s.Full, s.N, s.Type, s.Node, s.GPU, s.Grounded, s.PrecisionSum/float64(s.N), s.InvalidCitations, s.Errors)
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "| scenario | expected | predicted | node | gpu | grounded | full |")

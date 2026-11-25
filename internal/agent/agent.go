@@ -63,14 +63,13 @@ You can only see the logs through the tools. Work like a careful engineer:
 - Ignore events from before the job started and conditions that recovered on their own.
 - Per-node clocks can be skewed by a few seconds, so do not decide only by which timestamp is earliest across nodes.
 - Kernel lines name GPUs by PCI bus id; map them to a GPU index with the node's hw.txt (search for the bus id).
-- A missing signal can be evidence too (for example a GPU that stops reporting metrics).
 - Older tool outputs are shortened as you go. When you find a record you may cite, write its id in your reply.
 
 Answer by calling diagnose exactly once, with:
 - fault: one of gpu_fell_off_bus, gpu_ecc_uncorrectable, ib_link_down, host_oom, gpu_thermal_slowdown, storage_full, or other (a real root fault that is none of these).
 - node: e.g. node03.
-- gpu: the GPU index on that node, or -1 if the fault is not a single GPU (network, host memory, storage).
-- evidence: ids (like node03/kern.log:812) of the log records that directly show the root fault, copied exactly from tool output. Cite the root-cause records, not the timeouts.
+- gpu: the GPU index on that node when the fault is on one GPU (including its memory or its links); -1 when it is not a GPU fault (network adapter, host memory, storage).
+- evidence: one to five ids (like node03/kern.log:812) of the log records that directly show the root fault, copied exactly from tool output. Cite the root-cause records, not the timeouts.
 - explanation: two or three sentences.`
 
 func toolSpecs() []map[string]any {
@@ -164,6 +163,7 @@ func (c Config) chat(ctx context.Context, msgs []Message, onlyDiagnose bool) (ch
 
 const (
 	maxRejected   = 2
+	maxEvidence   = 5   // caps citations so grounding cannot be won by citing everything
 	keepToolFull  = 3   // most recent tool outputs kept verbatim
 	shortenedHead = 500 // characters kept from older tool outputs
 )
@@ -181,6 +181,10 @@ func compact(msgs []Message) []Message {
 			continue
 		}
 		seen++
+		// The anomaly digest is the investigation's map; it stays whole.
+		if out[i].ToolName == "anomalies" {
+			continue
+		}
 		if seen > keepToolFull && len(out[i].Content) > shortenedHead {
 			out[i].Content = out[i].Content[:shortenedHead] + "\n[older output shortened to save context; call the tool again if you need it]"
 		}
@@ -242,6 +246,11 @@ func Diagnose(ctx context.Context, cfg Config, set *logs.Set) (eval.Diagnosis, *
 					return d, tr, fmt.Errorf("diagnosis rejected %d times: %s", tr.Rejected, problem)
 				}
 				msgs = append(msgs, Message{Role: "tool", ToolName: name, Content: "rejected: " + problem + " Fix it and call diagnose again."})
+				continue
+			}
+			// The budget is hard: once spent, only diagnose is executed.
+			if tr.ToolCalls >= cfg.MaxSteps {
+				msgs = append(msgs, Message{Role: "tool", ToolName: name, Content: "not run: the investigation budget is spent. Call diagnose."})
 				continue
 			}
 			tr.ToolCalls++
@@ -340,6 +349,12 @@ func parseDiagnosis(raw json.RawMessage, set *logs.Set) (eval.Diagnosis, string)
 	}
 	if len(d.Evidence) == 0 {
 		return d, "evidence is empty."
+	}
+	if len(d.Evidence) > maxEvidence {
+		return d, fmt.Sprintf("cite at most %d records, the ones that directly show the root fault.", maxEvidence)
+	}
+	if !set.HasNode(d.Node) {
+		return d, fmt.Sprintf("node %q does not exist in these logs.", d.Node)
 	}
 	var missing []string
 	for _, id := range d.Evidence {

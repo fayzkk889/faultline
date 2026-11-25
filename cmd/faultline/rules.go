@@ -18,7 +18,13 @@ func cmdRules(args []string) error {
 	data := fs.String("data", "data/dev", "split directory containing scenario directories")
 	full := fs.Bool("full", false, "add signatures written with knowledge of the test phrasings (upper bound)")
 	out := fs.String("out", "", "write per-scenario results as JSON")
+	generic := fs.Bool("generic", false, "localization-only baseline with no fault vocabulary")
 	_ = fs.Parse(args)
+	if *generic {
+		return runEach(*data, *out, "rules-generic", func(set *logs.Set) (eval.Diagnosis, error) {
+			return rules.Generic(set), nil
+		})
+	}
 	name := "rules"
 	if *full {
 		name = "rules-full"
@@ -48,7 +54,7 @@ func runEach(data, out, name string, diagnose func(*logs.Set) (eval.Diagnosis, e
 		r := eval.Score(truth, d, set)
 		if derr != nil {
 			r.Error = derr.Error()
-			r.Full = false
+			r.Type, r.Node, r.GPU, r.Grounded, r.Full, r.Precision = false, false, false, false, false, 0
 		}
 		results = append(results, r)
 		fmt.Fprintf(os.Stderr, "%-40s full=%v predicted=%s/%s/%d\n", truth.Name, r.Full, d.Fault, d.Node, d.GPU)
