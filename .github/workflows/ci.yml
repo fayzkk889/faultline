@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ["1.23", "stable"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test -race -count=1 ./...
+
+  # The baselines are deterministic. Regenerate both splits and require the
+  # recorded result files to reproduce byte for byte, so published numbers
+  # cannot drift from the code that produced them.
+  reproduce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: regenerate scenarios
+        run: |
+          go run ./cmd/faultline gen -split dev  -out data
+          go run ./cmd/faultline gen -split test -out data
+      - name: rerun baselines
+        run: |
+          mkdir -p /tmp/r
+          for s in dev test; do
+            go run ./cmd/faultline rules          -data data/$s -out /tmp/r/rules-$s.json         >/dev/null
+            go run ./cmd/faultline rules -full    -data data/$s -out /tmp/r/rules-full-$s.json    >/dev/null
+            go run ./cmd/faultline rules -generic -data data/$s -out /tmp/r/rules-generic-$s.json >/dev/null
+          done
+      - name: compare with recorded results
+        run: |
+          for f in /tmp/r/*.json; do
+            diff -u "results/$(basename "$f")" "$f"
+          done
+          echo "all recorded baseline results reproduce"
